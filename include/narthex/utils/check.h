@@ -15,6 +15,13 @@ extern "C" {
 /* Returns ret if the expression is false. Use this for runtime failures that the caller must handle. */
 #define NTH_CHECK(expr, ret) do { if (!(expr)) return (ret); } while (0)
 
+/* In debug mode, traps if the expression is false. In release mode, does nothing. Use this for debug-only invariants. */
+#if NTH_DEBUG
+#  define NTH_DASSERT(expr) NTH_ASSERT(expr)
+#else
+#  define NTH_DASSERT(expr) ((void)sizeof(expr))
+#endif
+
 /* In debug mode, returns ret if the expression is false. In release mode, does nothing. Use this to validate arguments. */
 #if NTH_DEBUG
 #  define NTH_DCHECK(expr, ret) do { if (!(expr)) return (ret); } while (0)
