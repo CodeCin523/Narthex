@@ -1,0 +1,22 @@
+# Build
+build/
+
+# Install test prefix
+_test_install/
+
+# compile_commands.json is generated per-machine; create a local symlink to build/
+compile_commands.json
+
+# clangd index
+.cache/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

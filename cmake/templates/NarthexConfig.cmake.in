@@ -1,0 +1,16 @@
+@PACKAGE_INIT@
+
+set(_narthex_built_modules "@NTH_ENABLED_MODULES@")
+
+foreach(_comp ${Narthex_FIND_COMPONENTS})
+    if(NOT _comp IN_LIST _narthex_built_modules)
+        set(Narthex_FOUND FALSE)
+        set(Narthex_NOT_FOUND_MESSAGE
+            "Narthex was built without the '${_comp}' module (built: ${_narthex_built_modules})")
+        return()
+    endif()
+endforeach()
+
+include("${CMAKE_CURRENT_LIST_DIR}/NarthexTargets.cmake")
+
+check_required_components(Narthex)

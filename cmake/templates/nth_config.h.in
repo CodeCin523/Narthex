@@ -1,0 +1,6 @@
+#ifndef NTH_CONFIG_H
+#define NTH_CONFIG_H
+
+@NTH_CONFIG_DEFINES@
+
+#endif /* NTH_CONFIG_H */
