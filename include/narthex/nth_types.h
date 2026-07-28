@@ -49,6 +49,9 @@ typedef ptrdiff_t isize;
 #define I64_MIN INT64_MIN
 #define I64_MAX INT64_MAX
 
+#define NTH_TRUE ((b8)1)
+#define NTH_FALSE ((b8)0)
+
 #define F32_MIN     FLT_MIN
 #define F32_MAX     FLT_MAX
 #define F32_EPSILON FLT_EPSILON

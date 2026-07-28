@@ -1,10 +1,7 @@
 # ctest -L unit        run without hardware
 # ctest -L integration require display / GPU
 
-add_executable(test_mem test_mem.c)
-target_link_libraries(test_mem PRIVATE narthex::narthex)
-add_test(NAME mem COMMAND test_mem)
-set_tests_properties(mem PROPERTIES LABELS "unit")
+add_subdirectory(mem)
 
 if(NTH_ENABLE_window)
     add_executable(test_window test_window.c)

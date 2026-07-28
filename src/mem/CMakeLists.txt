@@ -1,4 +1,7 @@
-add_library(nth_obj_mem OBJECT mem.c)
+add_library(nth_obj_mem OBJECT
+    arena.c
+    dyn_arena.c
+)
 
 target_include_directories(nth_obj_mem PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
