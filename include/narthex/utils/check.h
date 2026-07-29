@@ -1,12 +1,12 @@
 #ifndef NTH_UTILS_CHECK_H
 #define NTH_UTILS_CHECK_H
 
+#include <narthex/utils/build.h>
+#include <narthex/utils/compiler.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include <narthex/utils/build.h>
-#include <narthex/utils/compiler.h>
 
 
 /* Always fatal in debug and release. Use this for internal invariants that must not fail. */

@@ -1,3 +1,5 @@
+#define NTH_SHORT_TYPES
+
 #include <narthex/mem/dyn_arena.h>
 
 #include <narthex/utils/check.h>

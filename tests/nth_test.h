@@ -12,16 +12,16 @@
         return NTH_FALSE; \
     }} while(0)
 
-typedef b8 (*NthTestFn)(void);
+typedef nth_b8 (*NthTestFn)(void);
 
 typedef struct {
     const char *name;
     NthTestFn   fn;
 } NthTest;
 
-static inline int nth_run_tests(NthTest *tests, usize count) {
-    usize failed = 0;
-    for (usize i = 0; i < count; i++) {
+static inline int nth_run_tests(NthTest *tests, nth_usize count) {
+    nth_usize failed = 0;
+    for (nth_usize i = 0; i < count; i++) {
         if (tests[i].fn()) {
             fprintf(stdout, "PASS  %s\n", tests[i].name);
         } else {

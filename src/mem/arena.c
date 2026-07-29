@@ -1,17 +1,17 @@
+#define NTH_SHORT_TYPES
+
 #include <narthex/mem/arena.h>
 
 #include <narthex/utils/check.h>
 #include <narthex/inl/align.h>
 
 
-b8 nth_setup_arena(NthArena *arena, NthSpan span) {
+void nth_setup_arena(NthArena *arena, NthSpan span) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));
     NTH_DASSERT(NTH_LIKELY(span.pool != NULL && span.capacity != 0));
 
     arena->span = span;
     arena->offset = 0;
-
-    return NTH_TRUE;
 }
 void nth_teardown_arena(NthArena *arena) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));

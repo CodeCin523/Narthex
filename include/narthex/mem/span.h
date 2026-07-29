@@ -1,16 +1,16 @@
 #ifndef NTH_MEM_SPAN_H
 #define NTH_MEM_SPAN_H
 
+#include <narthex/nth_types.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <narthex/nth_types.h>
-
 
 typedef struct NthSpan {
-    u8* pool;
-    usize capacity;
+    nth_u8* pool;
+    nth_usize capacity;
 } NthSpan;
 
 
