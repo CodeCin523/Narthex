@@ -13,13 +13,17 @@ typedef struct NthArena {
     nth_usize offset;
 } NthArena;
 
+typedef struct NthArenaMark {
+    nth_u64 v;
+} NthArenaMark;
+
 
 void nth_setup_arena(NthArena *arena, NthSpan span);
 void nth_teardown_arena(NthArena *arena);
 
 void *nth_arena_alloc(NthArena *arena, nth_usize size, nth_usize align);
-nth_uptr nth_arena_mark(NthArena *arena);
-void nth_arena_restore(NthArena *arena, nth_uptr mark);
+NthArenaMark nth_arena_mark(NthArena *arena);
+nth_b8 nth_arena_restore(NthArena *arena, NthArenaMark mark);
 void nth_arena_clean(NthArena *arena);
 
 

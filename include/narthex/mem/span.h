@@ -9,8 +9,8 @@ extern "C" {
 
 
 typedef struct NthSpan {
-    nth_u8* pool;
-    nth_usize capacity;
+    nth_u8   *base;
+    nth_usize size;
 } NthSpan;
 
 

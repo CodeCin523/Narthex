@@ -1,5 +1,3 @@
-#define NTH_SHORT_TYPES
-
 #include <narthex/mem/arena.h>
 
 #include <narthex/utils/check.h>
@@ -8,7 +6,7 @@
 
 void nth_setup_arena(NthArena *arena, NthSpan span) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));
-    NTH_DASSERT(NTH_LIKELY(span.pool != NULL && span.capacity != 0));
+    NTH_DASSERT(NTH_LIKELY(span.base != NULL && span.size != 0));
 
     arena->span = span;
     arena->offset = 0;
@@ -20,36 +18,42 @@ void nth_teardown_arena(NthArena *arena) {
     arena->offset = 0;
 }
 
-void *nth_arena_alloc(NthArena *arena, usize size, usize align) {
+void *nth_arena_alloc(NthArena *arena, nth_usize size, nth_usize align) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));
-    NTH_DASSERT(NTH_LIKELY(arena->span.pool != NULL));
+    NTH_DASSERT(NTH_LIKELY(arena->span.base != NULL));
     NTH_DASSERT(NTH_LIKELY(size > 0));
     NTH_DASSERT(NTH_LIKELY(nth_is_pow2(align)));
 
-    uptr aligned = nth_align_up((uptr)arena->span.pool + arena->offset, align);
+    nth_usize pad  = nth_align_pad((nth_uptr)arena->span.base + arena->offset, align);
+    nth_usize left = arena->span.size - arena->offset;
 
-    if(NTH_UNLIKELY(aligned + size > (uptr)arena->span.pool + arena->span.capacity))
-        return NULL;
+    if (NTH_UNLIKELY(pad > left)) return NULL;
+    if (NTH_UNLIKELY(size > left - pad)) return NULL;
 
-    arena->offset = (aligned - (uptr)arena->span.pool) + size;
+    nth_usize at = arena->offset + pad;
+    arena->offset = at + size;
 
-    return (void *)aligned;
+    return arena->span.base + at;
 }
-uptr nth_arena_mark(NthArena *arena) {
+NthArenaMark nth_arena_mark(NthArena *arena) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));
-    NTH_DASSERT(NTH_LIKELY(arena->span.pool != NULL));
+    NTH_DASSERT(NTH_LIKELY(arena->span.base != NULL));
 
-    return arena->offset; // would like to mask or xor the value
+    return (NthArenaMark){arena->offset}; // would like to mask or xor the value
 }
-void nth_arena_restore(NthArena *arena, uptr mark) {
+nth_b8 nth_arena_restore(NthArena *arena, NthArenaMark mark) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));
-    NTH_DASSERT(NTH_LIKELY(arena->span.pool != NULL));
+    NTH_DASSERT(NTH_LIKELY(arena->span.base != NULL));
     
-    arena->offset = mark;
+    if(NTH_UNLIKELY(mark.v > arena->offset))
+        return NTH_FALSE;
+
+    arena->offset = mark.v;
+    return NTH_TRUE;
 }
 void nth_arena_clean(NthArena *arena) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));
-    NTH_DASSERT(NTH_LIKELY(arena->span.pool != NULL));
+    NTH_DASSERT(NTH_LIKELY(arena->span.base != NULL));
 
     arena->offset = 0;
 }

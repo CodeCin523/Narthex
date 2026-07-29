@@ -1,5 +1,3 @@
-#define NTH_SHORT_TYPES
-
 #include <narthex/mem/dyn_arena.h>
 
 #include <narthex/utils/check.h>
@@ -8,9 +6,14 @@
 #include <stdlib.h>
 
 
-b8 nth_setup_dyn_arena(NthDynArena *arena, NthSpan span) {
+// 65535 spans and 256TB offset
+#define NTH_DYN_MARK_OFF_BITS 48
+#define NTH_DYN_MARK_OFF_MASK ((nth_u64)0xFFFFFFFFFFFF)
+
+
+nth_b8 nth_setup_dyn_arena(NthDynArena *arena, NthSpan span) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));
-    NTH_DASSERT(NTH_LIKELY(span.pool != NULL && span.capacity != 0));
+    NTH_DASSERT(NTH_LIKELY(span.base != NULL && span.size != 0));
 
     NthSpan *tmp = malloc(4 * sizeof(NthSpan));
     if(NTH_UNLIKELY(tmp == NULL))
@@ -40,13 +43,13 @@ void nth_teardown_dyn_arena(NthDynArena *arena) {
     arena->offset = 0;
 }
 
-b8 nth_dyn_arena_grow(NthDynArena *arena, NthSpan span) {
+nth_b8 nth_dyn_arena_grow(NthDynArena *arena, NthSpan span) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));
     NTH_DASSERT(NTH_LIKELY(arena->spans != NULL));
-    NTH_DASSERT(NTH_LIKELY(span.pool != NULL && span.capacity != 0));
+    NTH_DASSERT(NTH_LIKELY(span.base != NULL && span.size != 0));
 
     if(NTH_UNLIKELY(arena->span_count + 1 >= arena->span_capacity)) {
-        usize ncapacity = arena->span_capacity * 2;
+        nth_usize ncapacity = arena->span_capacity * 2;
 
         NthSpan *tmp = realloc(arena->spans, ncapacity * sizeof(NthSpan));
         if(NTH_UNLIKELY(tmp == NULL))
@@ -65,77 +68,87 @@ NthSpan nth_dyn_arena_shrink(NthDynArena *arena) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));
     NTH_DASSERT(NTH_LIKELY(arena->spans != NULL));
 
-    NthSpan ret = {NULL, 0};
+    if (arena->span_count == 0)
+        return (NthSpan){0};
 
-    if(NTH_LIKELY(arena->span_count > 0)) {
-        ret = arena->spans[--arena->span_count];
-        arena->spans[arena->span_count] = (NthSpan){0};
-    }
+    nth_usize last = arena->span_count - 1;
 
+    if (arena->span_idx == last && !(arena->span_idx == 0 && arena->offset == 0))
+        return (NthSpan){0};
+
+    NthSpan ret = arena->spans[last];
+    arena->spans[last] = (NthSpan){0};
+    arena->span_count = last;
     return ret;
 }
 
-void *nth_dyn_arena_alloc(NthDynArena *arena, usize size, usize align) {
+void *nth_dyn_arena_alloc(NthDynArena *arena, nth_usize size, nth_usize align) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));
     NTH_DASSERT(NTH_LIKELY(arena->spans != NULL));
     NTH_DASSERT(NTH_LIKELY(size > 0));
     NTH_DASSERT(NTH_LIKELY(nth_is_pow2(align)));
 
-    NthSpan cspan = arena->spans[arena->span_idx];
+    if (NTH_UNLIKELY(arena->span_count == 0))
+        return NULL;
 
-    uptr aligned = nth_align_up((uptr)cspan.pool + arena->offset, align);
+    NthSpan cur = arena->spans[arena->span_idx];
 
-    if(NTH_LIKELY(aligned + size <= (uptr)cspan.pool + cspan.capacity)) {
-        uptr offset = aligned - (uptr)cspan.pool;
-        arena->offset = offset + size;
+    nth_usize pad  = nth_align_pad((nth_uptr)cur.base + arena->offset, align);
+    nth_usize left = cur.size - arena->offset;
 
-        return (void *)aligned;
-    } else {
-        if(NTH_UNLIKELY(arena->span_idx + 1 >= arena->span_count))
-            return NULL;
-
-        cspan = arena->spans[arena->span_idx + 1];
-
-        uptr aligned = nth_align_up((uptr)cspan.pool, align);
-
-        if(NTH_UNLIKELY(aligned + size > (uptr)cspan.pool + cspan.capacity))
-            return NULL;
-
-        ++arena->span_idx;
-        arena->offset = aligned + size - (uptr)cspan.pool;
-
-        return (void *)aligned;
-    }
-}
-uptr nth_dyn_arena_mark(NthDynArena *arena) {
-    NTH_DASSERT(NTH_LIKELY(arena != NULL));
-    NTH_DASSERT(NTH_LIKELY(arena->spans != NULL));
-
-    uptr mark = 0;
-    
-    for(usize i = 0; i < arena->span_idx; i++) {
-        mark += arena->spans[i].capacity;
+    if (NTH_LIKELY(pad <= left && size <= left - pad)) {
+        nth_usize at  = arena->offset + pad;
+        arena->offset = at + size;
+        return cur.base + at;
     }
 
-    mark += arena->offset;
+    for (nth_usize i = arena->span_idx + 1; i < arena->span_count; i++) {
+        NthSpan s = arena->spans[i];
+        nth_usize p = nth_align_pad((nth_uptr)s.base, align);
 
-    return mark;
-}
-void nth_dyn_arena_restore(NthDynArena *arena, uptr mark) {
-    NTH_DASSERT(NTH_LIKELY(arena != NULL));
-    NTH_DASSERT(NTH_LIKELY(arena->spans != NULL));
+        if (p > s.size) continue;
+        if (size > s.size - p) continue;
 
-    for(usize i = 0; i < arena->span_count; i++) {
-
-        if(mark > arena->spans[i].capacity)
-            mark -= arena->spans[i].capacity;
-        else {
-            arena->span_idx = i;
-            arena->offset = mark;
-
-            return;
+        nth_usize next = arena->span_idx + 1;
+        if (i != next) {
+            NthSpan tmp = arena->spans[next];
+            arena->spans[next] = arena->spans[i];
+            arena->spans[i] = tmp;
         }
+
+        arena->span_idx = next;
+        arena->offset = p + size;
+        return arena->spans[next].base + p;
     }
+
+    return NULL;
+}
+NthDynArenaMark nth_dyn_arena_mark(NthDynArena *arena) {
+    NTH_DASSERT(NTH_LIKELY(arena != NULL));
+    NTH_DASSERT(NTH_LIKELY(arena->spans != NULL));
+
+    return (NthDynArenaMark){
+        (nth_u64)arena->span_idx << NTH_DYN_MARK_OFF_BITS | (nth_u64)arena->offset
+    };
+}
+nth_b8 nth_dyn_arena_restore(NthDynArena *arena, NthDynArenaMark mark) {
+    NTH_DASSERT(NTH_LIKELY(arena != NULL));
+    NTH_DASSERT(NTH_LIKELY(arena->spans != NULL));
+
+    nth_u64 idx = mark.v >> NTH_DYN_MARK_OFF_BITS;
+    nth_u64 off = mark.v & NTH_DYN_MARK_OFF_MASK;
+
+    if(NTH_UNLIKELY(idx > arena->span_idx))
+        return NTH_FALSE;
+
+    nth_u64 limit = (idx == arena->span_idx) ? arena->offset : arena->spans[idx].size;
+
+    if(NTH_UNLIKELY(off > limit))
+        return NTH_FALSE;
+
+    arena->span_idx = idx;
+    arena->offset = off;
+    return NTH_TRUE;
 }
 void nth_dyn_arena_clean(NthDynArena *arena) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));

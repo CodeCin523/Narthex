@@ -17,6 +17,11 @@ static inline nth_b8 nth_is_aligned(nth_uptr v, nth_usize align) {
     return (v & (align - 1)) == 0;
 }
 
+static inline nth_usize nth_align_pad(nth_uptr addr, nth_usize align) {
+    NTH_DASSERT(NTH_LIKELY(nth_is_pow2(align)));
+    return (nth_usize)(((nth_uptr)0 - addr) & (nth_uptr)(align - 1));
+}
+
 static inline nth_uptr nth_align_up(nth_uptr v, nth_usize align) {
     NTH_DASSERT(NTH_LIKELY(nth_is_pow2(align)));
 
