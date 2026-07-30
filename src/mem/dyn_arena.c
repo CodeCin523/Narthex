@@ -3,12 +3,36 @@
 #include <narthex/utils/check.h>
 #include <narthex/inl/align.h>
 
+#include "poison.h"
+
 #include <stdlib.h>
 
 
 // 65535 spans and 256TB offset
 #define NTH_DYN_MARK_OFF_BITS 48
 #define NTH_DYN_MARK_OFF_MASK ((nth_u64)0xFFFFFFFFFFFF)
+
+
+#if NTH_POISON || NTH_HAS_ASAN
+static void nth_dyn_poison_back_to(NthDynArena *arena, nth_usize idx, nth_usize off) {
+    if (arena->span_count == 0)
+        return;
+
+    if (idx == arena->span_idx) {
+        nth_poison_dead(arena->spans[idx].base + off, arena->offset - off);
+        return;
+    }
+
+    nth_poison_dead(arena->spans[idx].base + off, arena->spans[idx].size - off);
+
+    for (nth_usize i = idx + 1; i < arena->span_idx; i++)
+        nth_poison_dead(arena->spans[i].base, arena->spans[i].size);
+
+    nth_poison_dead(arena->spans[arena->span_idx].base, arena->offset);
+}
+#else
+#define nth_dyn_poison_back_to(arena, idx, off) ((void)0)
+#endif
 
 
 nth_b8 nth_setup_dyn_arena(NthDynArena *arena, NthSpan span) {
@@ -28,13 +52,19 @@ nth_b8 nth_setup_dyn_arena(NthDynArena *arena, NthSpan span) {
     arena->span_idx = 0;
     arena->offset = 0;
 
+    nth_poison_dead(span.base, span.size);
+
     return NTH_TRUE;
 }
 void nth_teardown_dyn_arena(NthDynArena *arena) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));
 
-    if(arena->spans != NULL)
+    if(arena->spans != NULL) {
+        for(nth_usize i = 0; i < arena->span_count; i++)
+            nth_poison_disown(arena->spans[i].base, arena->spans[i].size);
+
         free(arena->spans);
+    }
 
     arena->spans = NULL;
     arena->span_count = 0;
@@ -62,6 +92,8 @@ nth_b8 nth_dyn_arena_grow(NthDynArena *arena, NthSpan span) {
     arena->spans[arena->span_count] = span;
     arena->span_count++;
 
+    nth_poison_dead(span.base, span.size);
+
     return NTH_TRUE;
 }
 NthSpan nth_dyn_arena_shrink(NthDynArena *arena) {
@@ -79,6 +111,9 @@ NthSpan nth_dyn_arena_shrink(NthDynArena *arena) {
     NthSpan ret = arena->spans[last];
     arena->spans[last] = (NthSpan){0};
     arena->span_count = last;
+
+    nth_poison_disown(ret.base, ret.size);
+
     return ret;
 }
 
@@ -99,6 +134,7 @@ void *nth_dyn_arena_alloc(NthDynArena *arena, nth_usize size, nth_usize align) {
     if (NTH_LIKELY(pad <= left && size <= left - pad)) {
         nth_usize at  = arena->offset + pad;
         arena->offset = at + size;
+        nth_poison_live(cur.base + at, size);
         return cur.base + at;
     }
 
@@ -118,6 +154,7 @@ void *nth_dyn_arena_alloc(NthDynArena *arena, nth_usize size, nth_usize align) {
 
         arena->span_idx = next;
         arena->offset = p + size;
+        nth_poison_live(arena->spans[next].base + p, size);
         return arena->spans[next].base + p;
     }
 
@@ -146,6 +183,8 @@ nth_b8 nth_dyn_arena_restore(NthDynArena *arena, NthDynArenaMark mark) {
     if(NTH_UNLIKELY(off > limit))
         return NTH_FALSE;
 
+    nth_dyn_poison_back_to(arena, (nth_usize)idx, (nth_usize)off);
+
     arena->span_idx = idx;
     arena->offset = off;
     return NTH_TRUE;
@@ -153,6 +192,8 @@ nth_b8 nth_dyn_arena_restore(NthDynArena *arena, NthDynArenaMark mark) {
 void nth_dyn_arena_clean(NthDynArena *arena) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));
     NTH_DASSERT(NTH_LIKELY(arena->spans != NULL));
+
+    nth_dyn_poison_back_to(arena, 0, 0);
 
     arena->offset = 0;
     arena->span_idx = 0;

@@ -3,6 +3,8 @@
 #include <narthex/utils/check.h>
 #include <narthex/inl/align.h>
 
+#include "poison.h"
+
 
 void nth_setup_arena(NthArena *arena, NthSpan span) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));
@@ -10,9 +12,13 @@ void nth_setup_arena(NthArena *arena, NthSpan span) {
 
     arena->span = span;
     arena->offset = 0;
+
+    nth_poison_dead(span.base, span.size);
 }
 void nth_teardown_arena(NthArena *arena) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));
+
+    nth_poison_disown(arena->span.base, arena->span.size);
 
     arena->span = (NthSpan){0};
     arena->offset = 0;
@@ -33,6 +39,8 @@ void *nth_arena_alloc(NthArena *arena, nth_usize size, nth_usize align) {
     nth_usize at = arena->offset + pad;
     arena->offset = at + size;
 
+    nth_poison_live(arena->span.base + at, size);
+
     return arena->span.base + at;
 }
 NthArenaMark nth_arena_mark(NthArena *arena) {
@@ -48,12 +56,16 @@ nth_b8 nth_arena_restore(NthArena *arena, NthArenaMark mark) {
     if(NTH_UNLIKELY(mark.v > arena->offset))
         return NTH_FALSE;
 
+    nth_poison_dead(arena->span.base + mark.v, arena->offset - mark.v);
+
     arena->offset = mark.v;
     return NTH_TRUE;
 }
 void nth_arena_clean(NthArena *arena) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));
     NTH_DASSERT(NTH_LIKELY(arena->span.base != NULL));
+
+    nth_poison_dead(arena->span.base, arena->offset);
 
     arena->offset = 0;
 }

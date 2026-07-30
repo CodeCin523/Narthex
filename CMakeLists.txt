@@ -10,10 +10,44 @@ nth_print_summary()
 
 include(NarthexConfigGen)
 
+option(NTH_POISON "Fill discarded arena memory with a pattern" OFF)
+option(NTH_ASAN   "Build with AddressSanitizer" OFF)
+option(NTH_UBSAN  "Build with UndefinedBehaviorSanitizer (not available on MSVC)" OFF)
+
+if(NTH_ASAN)
+    if(MSVC)
+        string(REGEX REPLACE "/RTC[1csu]+" "" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+        string(REGEX REPLACE "/RTC[1csu]+" "" CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
+        add_compile_options(/fsanitize=address)
+        add_link_options(/INCREMENTAL:NO)
+    elseif(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+        add_link_options(-fsanitize=address)
+    else()
+        message(FATAL_ERROR "NTH_ASAN: no AddressSanitizer support known for ${CMAKE_C_COMPILER_ID}")
+    endif()
+endif()
+
+if(NTH_UBSAN)
+    if(MSVC)
+        message(FATAL_ERROR "NTH_UBSAN: MSVC has no UndefinedBehaviorSanitizer. Use NTH_ASAN instead.")
+    elseif(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        add_compile_options(-fsanitize=undefined -fno-omit-frame-pointer)
+        add_link_options(-fsanitize=undefined)
+    else()
+        message(FATAL_ERROR "NTH_UBSAN: no UndefinedBehaviorSanitizer support known for ${CMAKE_C_COMPILER_ID}")
+    endif()
+endif()
+
 add_library(nth_config INTERFACE)
 target_include_directories(nth_config INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
+
+if(NTH_POISON)
+    target_compile_definitions(nth_config INTERFACE NTH_POISON=1)
+endif()
 
 set(NTH_BASE_MODULES mem) # lifetime logger path loader
 foreach(m IN LISTS NTH_BASE_MODULES)
@@ -42,6 +76,14 @@ add_library(narthex::narthex ALIAS narthex)
 target_include_directories(narthex PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>)
+
+target_compile_features(narthex
+    PRIVATE   c_std_17
+    INTERFACE c_std_99)
+
+target_compile_options(narthex PRIVATE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wshadow -Wvla>
+    $<$<C_COMPILER_ID:MSVC>:/W4>)
 
 include(NarthexInstall)
 
