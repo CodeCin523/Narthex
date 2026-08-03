@@ -1,5 +1,5 @@
-#ifndef NTH_CORE_H
-#define NTH_CORE_H
+#ifndef NARTHEX_H
+#define NARTHEX_H
 
 #include <narthex/nth_types.h>
 #include <narthex/nth_result.h>
@@ -26,4 +26,4 @@ void nth_term(void);
 }
 #endif
 
-#endif /* NTH_CORE_H */
+#endif /* NARTHEX_H */
