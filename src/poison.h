@@ -4,28 +4,28 @@
 #include <narthex/nth_types.h>
 
 #if defined(__SANITIZE_ADDRESS__)
-#  define NTH_HAS_ASAN 1
+    #define NTH_HAS_ASAN 1
 #elif defined(__has_feature)
-#  if __has_feature(address_sanitizer)
-#    define NTH_HAS_ASAN 1
-#  endif
+    #if __has_feature(address_sanitizer)
+        #define NTH_HAS_ASAN 1
+    #endif
 #endif
 
 #ifndef NTH_HAS_ASAN
-#  define NTH_HAS_ASAN 0
+    #define NTH_HAS_ASAN 0
 #endif
 
 #ifndef NTH_POISON
-#  define NTH_POISON 0
+    #define NTH_POISON 0
 #endif
 
 #if NTH_HAS_ASAN
-#  include <sanitizer/asan_interface.h>
-#  define NTH_ASAN_OFF(p, n) ASAN_POISON_MEMORY_REGION((p), (n))
-#  define NTH_ASAN_ON(p, n)  ASAN_UNPOISON_MEMORY_REGION((p), (n))
+    #include <sanitizer/asan_interface.h>
+    #define NTH_ASAN_OFF(p, n) ASAN_POISON_MEMORY_REGION((p), (n))
+    #define NTH_ASAN_ON(p, n)  ASAN_UNPOISON_MEMORY_REGION((p), (n))
 #else
-#  define NTH_ASAN_OFF(p, n) ((void)0)
-#  define NTH_ASAN_ON(p, n)  ((void)0)
+    #define NTH_ASAN_OFF(p, n) ((void)0)
+    #define NTH_ASAN_ON(p, n)  ((void)0)
 #endif
 
 

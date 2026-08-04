@@ -1,7 +1,9 @@
 # ctest -L unit        run without hardware
 # ctest -L integration require display / GPU
+# ctest -L bench       performance comparison, no pass/fail
 
 add_subdirectory(mem)
+add_subdirectory(bench)
 
 if(NTH_ENABLE_window)
     add_executable(test_window test_window.c)

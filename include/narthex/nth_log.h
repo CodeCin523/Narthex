@@ -22,7 +22,7 @@ enum {
 void nth_log(NthLogLevel level, const char *msg);
 void nth_logf(NthLogLevel level, const char *fmt, ...);
 
-void flush(void);
+void nth_flush(void);
 
 
 #ifndef NTH_LOG_FATAL_ENABLED

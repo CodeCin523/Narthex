@@ -10,7 +10,8 @@ extern "C" {
 
 
 typedef struct NthLoggerDesc {
-
+    nth_usize buffer_size; /* 0 selects the default */
+    nth_b8    flush_each;
 } NthLoggerDesc;
 
 typedef struct NthCoreDesc {

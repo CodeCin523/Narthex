@@ -17,23 +17,23 @@ extern "C" {
 
 /* In debug mode, traps if the expression is false. In release mode, does nothing. Use this for debug-only invariants. */
 #if NTH_DEBUG
-#  define NTH_DASSERT(expr) NTH_ASSERT(expr)
+    #define NTH_DASSERT(expr) NTH_ASSERT(expr)
 #else
-#  define NTH_DASSERT(expr) ((void)sizeof(expr))
+    #define NTH_DASSERT(expr) ((void)sizeof(expr))
 #endif
 
 /* In debug mode, returns ret if the expression is false. In release mode, does nothing. Use this to validate arguments. */
 #if NTH_DEBUG
-#  define NTH_DCHECK(expr, ret) do { if (!(expr)) return (ret); } while (0)
+    #define NTH_DCHECK(expr, ret) do { if (!(expr)) return (ret); } while (0)
 #else
-#  define NTH_DCHECK(expr, ret) ((void)sizeof(expr))
+    #define NTH_DCHECK(expr, ret) ((void)sizeof(expr))
 #endif
 
 /* In debug mode, traps. In release mode, tells the optimizer that this path does not execute. */
 #if NTH_DEBUG
-#  define NTH_UNREACHABLE() NTH_TRAP()
+    #define NTH_UNREACHABLE() NTH_TRAP()
 #else
-#  define NTH_UNREACHABLE() NTH_ASSUME_UNREACHABLE()
+    #define NTH_UNREACHABLE() NTH_ASSUME_UNREACHABLE()
 #endif
 
 
