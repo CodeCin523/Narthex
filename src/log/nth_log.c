@@ -10,6 +10,8 @@
 #include <narthex/utils/compiler.h>
 #include <narthex/utils/platform.h>
 
+#include "lifecycle.h"
+#include "log_internal.h"
 #include "mutex.h"
 
 #include <errno.h>
@@ -35,9 +37,10 @@
 #define LOG_FORMAT_MAX     2048
 
 
-/* inflight is the only field touched outside the lock, so it gets its own
-   cache line to keep it from invalidating the lock holder's reads. */
+/* life and inflight are the fields touched outside the lock, so each gets its
+   own cache line to keep it from invalidating the lock holder's reads. */
 static NTH_ALIGNAS(NTH_CACHELINE) struct {
+    NTH_CACHE_ISOLATE(volatile NthLifecycle, life);
     NTH_CACHE_ISOLATE(volatile nth_u32, inflight);
 
     char      *buf;
@@ -47,7 +50,6 @@ static NTH_ALIGNAS(NTH_CACHELINE) struct {
     NthMutex   lock;
     char       time[LOG_TIME_SIZE];
     nth_b8     flush_each;
-    nth_b8     ready;
 } g_log;
 
 
@@ -174,7 +176,7 @@ static void log_flush_locked(void) {
 /* ================================================================================ */
 
 static void log_append(NthLogLevel level, const char *msg, nth_usize len) {
-    if (!g_log.ready)
+    if (!nth_lifecycle_is_alive(&g_log.life))
         return;
     if (level > NTH_LOG_LEVEL_DEBUG)
         level = NTH_LOG_LEVEL_DEBUG;
@@ -242,7 +244,7 @@ void nth_logf(NthLogLevel level, const char *fmt, ...) {
 }
 
 void nth_flush(void) {
-    if (!g_log.ready)
+    if (!nth_lifecycle_is_alive(&g_log.life))
         return;
 
     nth_mutex_lock(&g_log.lock);
@@ -256,8 +258,9 @@ void nth_flush(void) {
 /* ================================================================================ */
 
 NthResult nth_init_log(const NthLoggerDesc *desc) {
-    if (g_log.ready)
-        return NTH_RESULT_ALREADY_INITIALIZED;
+    NthResult r = nth_lifecycle_begin_init(&g_log.life);
+    if (r != NTH_RESULT_OK)
+        return r;
 
     nth_usize size = LOG_BUFFER_DEFAULT;
     nth_b8 flush_each = NTH_FALSE;
@@ -267,12 +270,16 @@ NthResult nth_init_log(const NthLoggerDesc *desc) {
             size = desc->buffer_size;
         flush_each = desc->flush_each;
     }
-    if (size <= LOG_FIXED_SIZE)
+    if (size <= LOG_FIXED_SIZE) {
+        nth_lifecycle_fail_init(&g_log.life);
         return NTH_RESULT_INVALID_ARGUMENT;
+    }
 
     g_log.buf = (char *)malloc(size);
-    if (g_log.buf == NULL)
+    if (g_log.buf == NULL) {
+        nth_lifecycle_fail_init(&g_log.life);
         return NTH_RESULT_OUT_OF_MEMORY;
+    }
 
     g_log.buf_size   = size;
     g_log.buf_index  = 0;
@@ -281,23 +288,28 @@ NthResult nth_init_log(const NthLoggerDesc *desc) {
     g_log.flush_each = flush_each;
 
     nth_mutex_init(&g_log.lock);
-    g_log.ready = NTH_TRUE;
+    nth_lifecycle_end_init(&g_log.life);
 
     return NTH_RESULT_OK;
 }
 
 void nth_term_log(void) {
-    if (!g_log.ready)
+    if (nth_lifecycle_begin_term(&g_log.life) != NTH_RESULT_OK)
         return;
 
     nth_mutex_lock(&g_log.lock);
     log_flush_locked();
     nth_mutex_unlock(&g_log.lock);
 
-    g_log.ready = NTH_FALSE;
     nth_mutex_destroy(&g_log.lock);
 
     free(g_log.buf);
     g_log.buf = NULL;
     g_log.buf_size = 0;
+
+    nth_lifecycle_end_term(&g_log.life);
+}
+
+nth_b8 nth_log_is_alive(void) {
+    return nth_lifecycle_is_alive(&g_log.life);
 }

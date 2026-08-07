@@ -49,7 +49,7 @@ if(NTH_POISON)
     target_compile_definitions(nth_config INTERFACE NTH_POISON=1)
 endif()
 
-set(NTH_BASE_MODULES mem log) # lifetime path loader
+set(NTH_BASE_MODULES mem log core) # lifetime path loader
 foreach(m IN LISTS NTH_BASE_MODULES)
     add_subdirectory(src/${m})
 endforeach()
