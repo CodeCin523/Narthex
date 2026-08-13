@@ -1,0 +1,5 @@
+add_executable(test_vulkan test_vulkan.c)
+target_link_libraries(test_vulkan PRIVATE narthex::narthex)
+target_include_directories(test_vulkan PRIVATE ${NTH_TEST_INCLUDE})
+add_test(NAME vulkan COMMAND test_vulkan)
+set_tests_properties(vulkan PROPERTIES LABELS "integration")

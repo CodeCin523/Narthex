@@ -1,0 +1,5 @@
+add_executable(test_window test_window.c)
+target_link_libraries(test_window PRIVATE narthex::narthex)
+target_include_directories(test_window PRIVATE ${NTH_TEST_INCLUDE})
+add_test(NAME window COMMAND test_window)
+set_tests_properties(window PROPERTIES LABELS "integration")

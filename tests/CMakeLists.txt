@@ -1,20 +1,17 @@
-# ctest -L unit        run without hardware
-# ctest -L integration require display / GPU
-# ctest -L bench       performance comparison, no pass/fail
+# One directory per domain, one file per test, named after what it runs:
+#   unit_*   run without hardware        ctest -L unit
+#   test_*   require display / GPU       ctest -L integration
+#   bench_*  performance comparison      ctest -L bench, no pass/fail
+
+set(NTH_TEST_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_subdirectory(mem)
-add_subdirectory(bench)
+add_subdirectory(log)
 
 if(NTH_ENABLE_window)
-    add_executable(test_window test_window.c)
-    target_link_libraries(test_window PRIVATE narthex::narthex)
-    add_test(NAME window COMMAND test_window)
-    set_tests_properties(window PROPERTIES LABELS "integration")
+    add_subdirectory(window)
 endif()
 
 if(NTH_ENABLE_vulkan)
-    add_executable(test_vulkan test_vulkan.c)
-    target_link_libraries(test_vulkan PRIVATE narthex::narthex)
-    add_test(NAME vulkan COMMAND test_vulkan)
-    set_tests_properties(vulkan PROPERTIES LABELS "integration")
+    add_subdirectory(vulkan)
 endif()
