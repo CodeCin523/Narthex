@@ -6,5 +6,4 @@ target_include_directories(nth_obj_vulkan PUBLIC
 
 target_link_libraries(nth_obj_vulkan PUBLIC
     nth_obj_core
-    nth_obj_lifetime
-    nth_obj_window)
+    nth_obj_lifetime)

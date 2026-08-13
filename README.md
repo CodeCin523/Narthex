@@ -1,18 +1,18 @@
 # Narthex
 
-A dependency-free C foundation library. It gives infrastructure building blocks to
-applications, engines, and simulations.
+A C foundation library. It gives infrastructure building blocks to applications,
+engines, and simulations.
 
 > **Status: early development.** Nothing is stable. The API changes without notice.
-> Only the arena allocators (`NthArena`, `NthDynArena`) are implemented and tested.
-> The `window` and `vulkan` modules are stubs. Do not depend on this yet.
+> Only the arena allocators (`NthArena`, `NthDynArena`) and the logger are
+> implemented and tested. The `vulkan` module is a stub. Do not depend on this yet.
 
 ## At a glance
 
 - Public prefix `nth_` for functions, `Nth` for types.
 - Public headers are **C99**. The library itself builds as **C17**.
 - Builds a static archive `libnarthex.a`, exported as `narthex::narthex`.
-- Requires CMake 3.23 or later. No other dependencies.
+- Requires CMake 3.23 or later. The library links only libc today.
 
 ## Build
 
@@ -26,14 +26,13 @@ cmake --build build
 | Option | Default | What it does |
 |---|---|---|
 | `NTH_BUILD_TESTS` | `OFF` | Build the test suite and enable CTest. |
-| `NTH_ENABLE_window` | `ON` | OS window and input module. |
-| `NTH_ENABLE_vulkan` | `ON` | Vulkan render backend. Enables `window` automatically. |
+| `NTH_ENABLE_vulkan` | `ON` | Vulkan render backend. |
 | `NTH_POISON` | `OFF` | Fill discarded arena memory with `0xDD`, fresh allocations with `0xCD`. |
 | `NTH_ASAN` | `OFF` | Build with AddressSanitizer. |
 | `NTH_UBSAN` | `OFF` | Build with UndefinedBehaviorSanitizer. Not available on MSVC. |
 
-Module dependencies resolve on their own. Turning on `NTH_ENABLE_vulkan` turns on
-`NTH_ENABLE_window` for you.
+Module dependencies resolve on their own: enabling a module enables everything it
+declares in `DEPENDS`. No module declares one today.
 
 `NTH_ASAN` and `NTH_UBSAN` apply to the library, the modules, and the tests
 together, because sanitizers need consistent instrumentation across the whole
@@ -52,11 +51,12 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-Two labels are available:
+Tests live in `tests/<domain>/`, one file per test, named for what they are:
 
 ```sh
-ctest --test-dir build -L unit          # no hardware needed
-ctest --test-dir build -L integration   # needs a display or a GPU
+ctest --test-dir build -L unit          # unit_*   no hardware needed
+ctest --test-dir build -L integration   # test_*   needs a GPU
+ctest --test-dir build -L bench         # bench_*  comparison report, no pass/fail
 ```
 
 To run the suite under the sanitizers:
@@ -76,7 +76,7 @@ precision at the edges of unaligned ones.
 ## Use from CMake
 
 ```cmake
-find_package(Narthex REQUIRED COMPONENTS window vulkan)
+find_package(Narthex REQUIRED COMPONENTS vulkan)
 target_link_libraries(my_app PRIVATE narthex::narthex)
 ```
 

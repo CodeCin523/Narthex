@@ -29,11 +29,16 @@ NthResult nth_init_log(const NthLoggerDesc *desc);
 void nth_term_log(void);
 
 
-#define OPS        200000u
-#define THREADS    8u
-#define OPS_PER_TH (OPS / THREADS)
-#define BUF_SIZE   (64u * 1024u)
-#define LINE_MAX   256
+#define OPS_DEFAULT 2000000u
+#define THREADS     8u
+#define BUF_SIZE    (64u * 1024u)
+#define LINE_MAX    256
+#define WARMUP_MS   250.0
+
+/* Ops per case, overridable with argv[1]. At the default even the quickest case
+   runs long enough to leave the clock resolution and the CPU's ramp behind. */
+static nth_usize g_ops        = OPS_DEFAULT;
+static nth_usize g_ops_per_th = OPS_DEFAULT / THREADS;
 
 static const char MSG[] = "the quick brown fox jumps over the lazy dog";
 
@@ -123,20 +128,32 @@ static void stamp_get_uncached(char *out) {
 /*  SINGLE THREADED                                                                 */
 /* ================================================================================ */
 
+/* Untimed. Gives the CPU time to reach its sustained clock and faults in the
+   log buffer, so the first case measured is not the one paying for both. */
+static void warmup(void) {
+    const double t0 = now_ms();
+
+    while (now_ms() - t0 < WARMUP_MS)
+        for (nth_usize i = 0; i < 1000; ++i)
+            nth_log(NTH_LOG_LEVEL_INFO, MSG);
+
+    nth_flush();
+}
+
 static void bench_narthex(void) {
     const double t0 = now_ms();
-    for (nth_usize i = 0; i < OPS; ++i)
+    for (nth_usize i = 0; i < g_ops; ++i)
         nth_log(NTH_LOG_LEVEL_INFO, MSG);
     nth_flush();
-    record("single thread", "narthex  nth_log", now_ms() - t0, OPS);
+    record("single thread", "narthex  nth_log", now_ms() - t0, g_ops);
 }
 
 static void bench_narthex_fmt(void) {
     const double t0 = now_ms();
-    for (nth_usize i = 0; i < OPS; ++i)
+    for (nth_usize i = 0; i < g_ops; ++i)
         nth_logf(NTH_LOG_LEVEL_INFO, "%s %u", MSG, (unsigned)i);
     nth_flush();
-    record("single thread", "narthex  nth_logf", now_ms() - t0, OPS);
+    record("single thread", "narthex  nth_logf", now_ms() - t0, g_ops);
 }
 
 static void bench_stdio(const char *name, int buffered, int cached) {
@@ -156,7 +173,7 @@ static void bench_stdio(const char *name, int buffered, int cached) {
     }
 
     const double t0 = now_ms();
-    for (nth_usize i = 0; i < OPS; ++i) {
+    for (nth_usize i = 0; i < g_ops; ++i) {
         if (cached)
             stamp_get(&st, ts);
         else
@@ -164,7 +181,7 @@ static void bench_stdio(const char *name, int buffered, int cached) {
         fprintf(f, "%s [MSG] - %s\n", ts, MSG);
     }
     fflush(f);
-    record("single thread", name, now_ms() - t0, OPS);
+    record("single thread", name, now_ms() - t0, g_ops);
 
     fclose(f);
     free(vbuf);
@@ -176,12 +193,12 @@ static void bench_snprintf_write(void) {
     char ts[24];
 
     const double t0 = now_ms();
-    for (nth_usize i = 0; i < OPS; ++i) {
+    for (nth_usize i = 0; i < g_ops; ++i) {
         stamp_get(&st, ts);
         const int n = snprintf(line, sizeof line, "%s [MSG] - %s\n", ts, MSG);
         raw_write(line, (nth_usize)n);
     }
-    record("single thread", "snprintf + write per line", now_ms() - t0, OPS);
+    record("single thread", "snprintf + write per line", now_ms() - t0, g_ops);
 }
 
 static void bench_manual_buffer(void) {
@@ -195,7 +212,7 @@ static void bench_manual_buffer(void) {
         return;
 
     const double t0 = now_ms();
-    for (nth_usize i = 0; i < OPS; ++i) {
+    for (nth_usize i = 0; i < g_ops; ++i) {
         stamp_get(&st, ts);
         const nth_usize n =
             (nth_usize)snprintf(line, sizeof line, "%s [MSG] - %s\n", ts, MSG);
@@ -209,7 +226,7 @@ static void bench_manual_buffer(void) {
     }
     if (used != 0)
         raw_write(buf, used);
-    record("single thread", "manual buffer, no locking", now_ms() - t0, OPS);
+    record("single thread", "manual buffer, no locking", now_ms() - t0, g_ops);
 
     free(buf);
 }
@@ -260,7 +277,7 @@ static FILE      *g_shared;
 static BenchMutex g_shared_lock;
 
 static void worker_narthex(void) {
-    for (nth_usize i = 0; i < OPS_PER_TH; ++i)
+    for (nth_usize i = 0; i < g_ops_per_th; ++i)
         nth_log(NTH_LOG_LEVEL_INFO, MSG);
 }
 
@@ -268,7 +285,7 @@ static void worker_stdio_mutex(void) {
     Stamp st = STAMP_INIT;
     char ts[24];
 
-    for (nth_usize i = 0; i < OPS_PER_TH; ++i) {
+    for (nth_usize i = 0; i < g_ops_per_th; ++i) {
         stamp_get(&st, ts);
         bench_mutex_lock(&g_shared_lock);
         fprintf(g_shared, "%s [MSG] - %s\n", ts, MSG);
@@ -280,7 +297,7 @@ static void worker_stdio_plain(void) {
     Stamp st = STAMP_INIT;
     char ts[24];
 
-    for (nth_usize i = 0; i < OPS_PER_TH; ++i) {
+    for (nth_usize i = 0; i < g_ops_per_th; ++i) {
         stamp_get(&st, ts);
         fprintf(g_shared, "%s [MSG] - %s\n", ts, MSG);
     }
@@ -299,10 +316,12 @@ static double run_threaded(WorkerFn fn) {
 
 static void bench_threaded(void) {
     char *vbuf = (char *)malloc(BUF_SIZE);
+    /* Not g_ops: the per thread count is rounded down to divide evenly. */
+    const nth_usize total = g_ops_per_th * THREADS;
 
     double ms = run_threaded(worker_narthex);
     nth_flush();
-    record("8 threads", "narthex  nth_log", ms, OPS);
+    record("8 threads", "narthex  nth_log", ms, total);
 
     g_shared = fopen(NULL_DEVICE, "wb");
     if (g_shared == NULL) {
@@ -314,11 +333,11 @@ static void bench_threaded(void) {
 
     ms = run_threaded(worker_stdio_mutex);
     fflush(g_shared);
-    record("8 threads", "buffered stdio + mutex", ms, OPS);
+    record("8 threads", "buffered stdio + mutex", ms, total);
 
     ms = run_threaded(worker_stdio_plain);
     fflush(g_shared);
-    record("8 threads", "buffered stdio, implicit lock", ms, OPS);
+    record("8 threads", "buffered stdio, implicit lock", ms, total);
 
     bench_mutex_destroy(&g_shared_lock);
     fclose(g_shared);
@@ -335,8 +354,8 @@ static void print_results(void) {
     double base = 0.0;
 
     printf("\nlog benchmark: %u ops per case, %u threads in the threaded group\n",
-           (unsigned)OPS, (unsigned)THREADS);
-    printf("all output goes to %s, results below\n", NULL_DEVICE);
+           (unsigned)g_ops, (unsigned)THREADS);
+    printf("all output goes to %s, after a %.0f ms warmup\n", NULL_DEVICE, WARMUP_MS);
 
     for (nth_usize i = 0; i < g_res_count; ++i) {
         if (group == NULL || strcmp(group, g_res[i].group) != 0) {
@@ -354,9 +373,20 @@ static void print_results(void) {
 }
 
 
-int main(void) {
+int main(int argc, char **argv) {
     NthLoggerDesc desc = {0};
     desc.buffer_size = BUF_SIZE;
+
+    if (argc > 1) {
+        const long ops = strtol(argv[1], NULL, 10);
+
+        if (ops < (long)THREADS) {
+            printf("usage: %s [ops per case, at least %u]\n", argv[0], (unsigned)THREADS);
+            return EXIT_FAILURE;
+        }
+        g_ops        = (nth_usize)ops;
+        g_ops_per_th = g_ops / THREADS;
+    }
 
     if (freopen(NULL_DEVICE, "wb", stderr) == NULL) {
         printf("could not redirect stderr\n");
@@ -366,6 +396,8 @@ int main(void) {
         printf("nth_init_log failed\n");
         return EXIT_FAILURE;
     }
+
+    warmup();
 
     bench_narthex();
     bench_narthex_fmt();

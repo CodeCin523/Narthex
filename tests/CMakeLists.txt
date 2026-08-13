@@ -8,10 +8,6 @@ set(NTH_TEST_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR})
 add_subdirectory(mem)
 add_subdirectory(log)
 
-if(NTH_ENABLE_window)
-    add_subdirectory(window)
-endif()
-
 if(NTH_ENABLE_vulkan)
     add_subdirectory(vulkan)
 endif()
