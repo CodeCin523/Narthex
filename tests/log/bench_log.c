@@ -1,10 +1,16 @@
-#if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
+#include <narthex/utils/platform.h>
+
+#if !NTH_PLATFORM_WINDOWS && !defined(_POSIX_C_SOURCE)
     #define _POSIX_C_SOURCE 200809L
+#endif
+#if NTH_PLATFORM_LINUX && !defined(_GNU_SOURCE)
+    #define _GNU_SOURCE
 #endif
 
 #include <narthex/nth_log.h>
 
 #include <narthex/narthex.h>
+#include <narthex/utils/arch.h>
 #include <narthex/utils/platform.h>
 
 #include <stdio.h>
@@ -20,11 +26,16 @@
     #define NULL_DEVICE "NUL"
 #else
     #include <pthread.h>
+    #include <sched.h>
     #include <unistd.h>
     #define NULL_DEVICE "/dev/null"
 #endif
 
-/* Declared here until the core exposes them. */
+#if NTH_ARCH_X86_64
+    #include <x86intrin.h>
+#endif
+
+
 NthResult nth_init_log(const NthLoggerDesc *desc);
 void nth_term_log(void);
 
@@ -35,8 +46,7 @@ void nth_term_log(void);
 #define LINE_MAX    256
 #define WARMUP_MS   250.0
 
-/* Ops per case, overridable with argv[1]. At the default even the quickest case
-   runs long enough to leave the clock resolution and the CPU's ramp behind. */
+
 static nth_usize g_ops        = OPS_DEFAULT;
 static nth_usize g_ops_per_th = OPS_DEFAULT / THREADS;
 
@@ -96,7 +106,7 @@ static void break_time(time_t now, struct tm *out) {
 #endif
 }
 
-/* Per caller timestamp cache, so the threaded runs share no state. */
+
 typedef struct {
     time_t at;
     char   text[20];
@@ -123,13 +133,70 @@ static void stamp_get_uncached(char *out) {
     strftime(out, 20, "[%Y-%j %H:%M:%S]", &tmv);
 }
 
+static const char TAG[] = " [MSG] - ";
+
+#define MSG_LEN (sizeof MSG - 1)
+
+static nth_usize build_line(char *out, Stamp *st, const char *msg) {
+    char *p = out;
+
+    stamp_get(st, p);
+    p += 19;
+    memcpy(p, TAG, sizeof TAG - 1);
+    p += sizeof TAG - 1;
+    memcpy(p, msg, MSG_LEN);
+    p += MSG_LEN;
+    *p++ = '\n';
+
+    return (nth_usize)(p - out);
+}
+
+
+/* ================================================================================ */
+/*  COLD SOURCE                                                                     */
+/* ================================================================================ */
+
+#define COLD_BYTES  (128u * 1024u * 1024u)
+#define COLD_STRIDE 64u
+#define COLD_COUNT  (COLD_BYTES / COLD_STRIDE)
+
+static char *g_cold;
+
+static nth_b8 cold_setup(void) {
+    g_cold = (char *)malloc(COLD_BYTES);
+    if (g_cold == NULL)
+        return NTH_FALSE;
+
+    for (nth_usize i = 0; i < COLD_COUNT; ++i) {
+        char *p = g_cold + i * COLD_STRIDE;
+        memcpy(p, MSG, MSG_LEN);
+        p[0] = (char)('a' + (i % 26));
+    }
+    return NTH_TRUE;
+}
+
+static void cold_teardown(void) {
+    free(g_cold);
+    g_cold = NULL;
+}
+
+static const char *cold_at(nth_u32 *state) {
+    nth_u32 x = *state;
+
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    *state = x;
+
+    return g_cold + (nth_usize)(x % COLD_COUNT) * COLD_STRIDE;
+}
+
 
 /* ================================================================================ */
 /*  SINGLE THREADED                                                                 */
 /* ================================================================================ */
 
-/* Untimed. Gives the CPU time to reach its sustained clock and faults in the
-   log buffer, so the first case measured is not the one paying for both. */
+
 static void warmup(void) {
     const double t0 = now_ms();
 
@@ -316,7 +383,7 @@ static double run_threaded(WorkerFn fn) {
 
 static void bench_threaded(void) {
     char *vbuf = (char *)malloc(BUF_SIZE);
-    /* Not g_ops: the per thread count is rounded down to divide evenly. */
+    
     const nth_usize total = g_ops_per_th * THREADS;
 
     double ms = run_threaded(worker_narthex);
@@ -346,6 +413,320 @@ static void bench_threaded(void) {
 
 
 /* ================================================================================ */
+/*  MESSAGE SOURCE                                                                  */
+/* ================================================================================ */
+
+static void bench_source(void) {
+    nth_u32 rnd = 2463534242u;
+    Stamp   st  = STAMP_INIT;
+    char    line[LINE_MAX];
+    char   *vbuf;
+    FILE   *f;
+    double  t0;
+
+    t0 = now_ms();
+    for (nth_usize i = 0; i < g_ops; ++i) {
+        (void)cold_at(&rnd);
+        nth_logn(NTH_LOG_LEVEL_INFO, MSG, MSG_LEN);
+    }
+    nth_flush();
+    record("message source", "narthex  nth_logn, hot", now_ms() - t0, g_ops);
+
+    t0 = now_ms();
+    for (nth_usize i = 0; i < g_ops; ++i)
+        nth_logn(NTH_LOG_LEVEL_INFO, cold_at(&rnd), MSG_LEN);
+    nth_flush();
+    record("message source", "narthex  nth_logn, cold", now_ms() - t0, g_ops);
+
+    f = fopen(NULL_DEVICE, "wb");
+    if (f == NULL)
+        return;
+
+    vbuf = (char *)malloc(BUF_SIZE);
+    setvbuf(f, vbuf, _IOFBF, BUF_SIZE);
+
+    t0 = now_ms();
+    for (nth_usize i = 0; i < g_ops; ++i) {
+        (void)cold_at(&rnd);
+        fwrite(line, 1, build_line(line, &st, MSG), f);
+    }
+    fflush(f);
+    record("message source", "FILE* fwrite, hot", now_ms() - t0, g_ops);
+
+    t0 = now_ms();
+    for (nth_usize i = 0; i < g_ops; ++i)
+        fwrite(line, 1, build_line(line, &st, cold_at(&rnd)), f);
+    fflush(f);
+    record("message source", "FILE* fwrite, cold", now_ms() - t0, g_ops);
+
+    fclose(f);
+    free(vbuf);
+}
+
+
+/* ================================================================================ */
+/*  LATENCY                                                                         */
+/* ================================================================================ */
+
+#define LAT_SAMPLES 200000u
+#define LAT_MAX_TH  64u
+
+typedef struct {
+    const char *name;
+    nth_usize   threads;
+    double      p50;
+    double      p99;
+    double      p999;
+    double      max;
+} LatResult;
+
+static LatResult  g_lat[16];
+static nth_usize  g_lat_count;
+static nth_u32   *g_lat_sample[LAT_MAX_TH];
+static double     g_tick_ns = 1.0;
+static nth_u64    g_lat_probe;
+static int        g_core[LAT_MAX_TH];
+static int        g_core_count;
+
+static nth_u64 lat_tick(void) {
+#if NTH_ARCH_X86_64
+    unsigned aux;
+    nth_u64  t;
+
+    _mm_lfence();
+    t = (nth_u64)__rdtscp(&aux);
+    _mm_lfence();
+    return t;
+#elif NTH_PLATFORM_WINDOWS
+    LARGE_INTEGER c;
+    QueryPerformanceCounter(&c);
+    return (nth_u64)c.QuadPart;
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (nth_u64)ts.tv_sec * 1000000000ull + (nth_u64)ts.tv_nsec;
+#endif
+}
+
+static void lat_calibrate(void) {
+#if NTH_ARCH_X86_64
+    const double  t0 = now_ms();
+    const nth_u64 c0 = lat_tick();
+
+    while (now_ms() - t0 < 100.0)
+        ;
+
+    const double  el = now_ms() - t0;
+    const nth_u64 c1 = lat_tick();
+    g_tick_ns = el * 1000000.0 / (double)(c1 - c0);
+#elif NTH_PLATFORM_WINDOWS
+    LARGE_INTEGER f;
+    QueryPerformanceFrequency(&f);
+    g_tick_ns = 1000000000.0 / (double)f.QuadPart;
+#endif
+}
+
+static void lat_find_cores(void) {
+#if NTH_PLATFORM_LINUX
+    char path[128], buf[256];
+
+    for (int cpu = 0; cpu < 1024 && g_core_count < (int)LAT_MAX_TH; ++cpu) {
+        snprintf(path, sizeof path,
+                 "/sys/devices/system/cpu/cpu%d/topology/thread_siblings_list", cpu);
+
+        FILE *f = fopen(path, "r");
+        if (f == NULL)
+            continue;
+        if (fgets(buf, sizeof buf, f) != NULL && atoi(buf) == cpu)
+            g_core[g_core_count++] = cpu;
+        fclose(f);
+    }
+#endif
+    if (g_core_count == 0)
+        for (int i = 0; i < (int)LAT_MAX_TH; ++i)
+            g_core[g_core_count++] = i;
+}
+
+static void lat_pin(unsigned slot) {
+    const int cpu = g_core[slot % (unsigned)g_core_count];
+
+#if NTH_PLATFORM_WINDOWS
+    SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)1 << (cpu % 64));
+#elif defined(__linux__)
+    cpu_set_t set;
+    CPU_ZERO(&set);
+    CPU_SET(cpu, &set);
+    pthread_setaffinity_np(pthread_self(), sizeof set, &set);
+#else
+    (void)cpu;
+#endif
+}
+
+typedef void (*LatOp)(Stamp *st, char *line, const char *msg);
+
+static LatOp  g_lat_op;
+static nth_b8 g_lat_cold;
+
+static void lat_op_narthex(Stamp *st, char *line, const char *msg) {
+    (void)st;
+    (void)line;
+    nth_logn(NTH_LOG_LEVEL_INFO, msg, MSG_LEN);
+}
+
+static void lat_op_fwrite(Stamp *st, char *line, const char *msg) {
+    const nth_usize n = build_line(line, st, msg);
+    fwrite(line, 1, n, g_shared);
+}
+
+static void lat_worker(unsigned id) {
+    Stamp    st  = STAMP_INIT;
+    nth_u32  rnd = 2463534242u + (nth_u32)id * 7919u;
+    char     line[LINE_MAX];
+    nth_u32 *out = g_lat_sample[id];
+
+    lat_pin(id);
+
+    for (nth_usize i = 0; i < LAT_SAMPLES; ++i) {
+        const char *msg = g_lat_cold ? cold_at(&rnd) : MSG;
+
+        const nth_u64 a = lat_tick();
+        g_lat_op(&st, line, msg);
+        const nth_u64 b = lat_tick();
+
+        out[i] = (nth_u32)(b - a);
+    }
+}
+
+typedef struct {
+    unsigned id;
+} LatArg;
+
+#if NTH_PLATFORM_WINDOWS
+static DWORD WINAPI lat_shim(LPVOID p) {
+    lat_worker(((LatArg *)p)->id);
+    return 0;
+}
+static BenchThread lat_start(LatArg *a) {
+    return CreateThread(NULL, 0, lat_shim, (LPVOID)a, 0, NULL);
+}
+#else
+static void *lat_shim(void *p) {
+    lat_worker(((LatArg *)p)->id);
+    return NULL;
+}
+static BenchThread lat_start(LatArg *a) {
+    pthread_t t;
+    pthread_create(&t, NULL, lat_shim, (void *)a);
+    return t;
+}
+#endif
+
+static int lat_cmp(const void *a, const void *b) {
+    const nth_u32 x = *(const nth_u32 *)a, y = *(const nth_u32 *)b;
+    return x < y ? -1 : (x > y ? 1 : 0);
+}
+
+static double lat_ns(nth_u32 raw) {
+    const double net = (double)raw - (double)g_lat_probe;
+    return (net < 0.0 ? 0.0 : net) * g_tick_ns;
+}
+
+static double lat_pick(const nth_u32 *sorted, nth_usize n, double p) {
+    nth_usize i = (nth_usize)(p * (double)n);
+    return lat_ns(sorted[i >= n ? n - 1 : i]);
+}
+
+static void lat_run(const char *name, LatOp op, nth_usize threads) {
+    BenchThread th[LAT_MAX_TH];
+    LatArg      arg[LAT_MAX_TH];
+
+    g_lat_op = op;
+
+    for (nth_usize i = 0; i < threads; ++i) {
+        arg[i].id = (unsigned)i;
+        g_lat_sample[i] = (nth_u32 *)malloc(LAT_SAMPLES * sizeof **g_lat_sample);
+        if (g_lat_sample[i] == NULL)
+            return;
+    }
+
+    if (threads == 1) {
+        lat_worker(0);
+    } else {
+        for (nth_usize i = 0; i < threads; ++i)
+            th[i] = lat_start(&arg[i]);
+        for (nth_usize i = 0; i < threads; ++i)
+            thread_join(th[i]);
+    }
+
+    const nth_usize total = threads * LAT_SAMPLES;
+    nth_u32 *all = (nth_u32 *)malloc(total * sizeof *all);
+
+    if (all != NULL) {
+        for (nth_usize i = 0; i < threads; ++i)
+            memcpy(all + i * LAT_SAMPLES, g_lat_sample[i],
+                   LAT_SAMPLES * sizeof *all);
+
+        qsort(all, total, sizeof *all, lat_cmp);
+
+        g_lat[g_lat_count].name    = name;
+        g_lat[g_lat_count].threads = threads;
+        g_lat[g_lat_count].p50     = lat_pick(all, total, 0.50);
+        g_lat[g_lat_count].p99     = lat_pick(all, total, 0.99);
+        g_lat[g_lat_count].p999    = lat_pick(all, total, 0.999);
+        g_lat[g_lat_count].max     = lat_ns(all[total - 1]);
+        g_lat_count++;
+
+        free(all);
+    }
+
+    for (nth_usize i = 0; i < threads; ++i)
+        free(g_lat_sample[i]);
+}
+
+static void bench_latency(void) {
+    char *vbuf = (char *)malloc(BUF_SIZE);
+
+    lat_find_cores();
+    lat_calibrate();
+
+    g_lat_probe = ~(nth_u64)0;
+    for (nth_usize i = 0; i < 10000; ++i) {
+        const nth_u64 a = lat_tick();
+        const nth_u64 b = lat_tick();
+        if (b - a < g_lat_probe)
+            g_lat_probe = b - a;
+    }
+
+    g_lat_cold = NTH_FALSE;
+    lat_run("narthex  nth_logn hot", lat_op_narthex, 1);
+    lat_run("narthex  nth_logn hot", lat_op_narthex, THREADS);
+    g_lat_cold = NTH_TRUE;
+    lat_run("narthex  nth_logn cold", lat_op_narthex, 1);
+    lat_run("narthex  nth_logn cold", lat_op_narthex, THREADS);
+    nth_flush();
+
+    g_shared = fopen(NULL_DEVICE, "wb");
+    if (g_shared == NULL) {
+        free(vbuf);
+        return;
+    }
+    setvbuf(g_shared, vbuf, _IOFBF, BUF_SIZE);
+
+    g_lat_cold = NTH_FALSE;
+    lat_run("FILE* fwrite hot", lat_op_fwrite, 1);
+    lat_run("FILE* fwrite hot", lat_op_fwrite, THREADS);
+    g_lat_cold = NTH_TRUE;
+    lat_run("FILE* fwrite cold", lat_op_fwrite, 1);
+    lat_run("FILE* fwrite cold", lat_op_fwrite, THREADS);
+    fflush(g_shared);
+
+    fclose(g_shared);
+    g_shared = NULL;
+    free(vbuf);
+}
+
+
+/* ================================================================================ */
 /*  REPORT                                                                          */
 /* ================================================================================ */
 
@@ -369,6 +750,23 @@ static void print_results(void) {
                g_res[i].name, g_res[i].ms, ns,
                base > 0.0 ? g_res[i].ms / base : 0.0);
     }
+    printf("\n");
+}
+
+static void print_latency(void) {
+    printf("\nper call latency, %u samples per thread, pinned one per physical core\n",
+           (unsigned)LAT_SAMPLES);
+    printf("serialised probe costs %.1f ns and is subtracted\n",
+           (double)g_lat_probe * g_tick_ns);
+
+    printf("\n%-24s %8s %9s %9s %10s %11s\n",
+           "", "threads", "p50 ns", "p99 ns", "p99.9 ns", "max ns");
+    printf("--------------------------------------------------------------------------\n");
+
+    for (nth_usize i = 0; i < g_lat_count; ++i)
+        printf("  %-22s %8u %9.1f %9.1f %10.1f %11.1f\n",
+               g_lat[i].name, (unsigned)g_lat[i].threads,
+               g_lat[i].p50, g_lat[i].p99, g_lat[i].p999, g_lat[i].max);
     printf("\n");
 }
 
@@ -408,8 +806,17 @@ int main(int argc, char **argv) {
     bench_manual_buffer();
     bench_threaded();
 
+    if (!cold_setup()) {
+        printf("could not allocate the cold message ring\n");
+        return EXIT_FAILURE;
+    }
+    bench_source();
+    bench_latency();
+    cold_teardown();
+
     nth_term_log();
 
     print_results();
+    print_latency();
     return EXIT_SUCCESS;
 }

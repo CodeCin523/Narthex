@@ -26,15 +26,10 @@
     #include <unistd.h>
 #endif
 
-/* Declared here until the core exposes them. */
 NthResult nth_init_log(const NthLoggerDesc *desc);
 void nth_term_log(void);
 nth_b8 nth_log_is_alive(void);
 
-
-/* The line layout the logger promises: "[YYYY-DDD HH:MM:SS] [LVL] - msg\n".
-   Spelled out instead of shared with the implementation, so a silent change to
-   the private constants shows up here as a failure. */
 #define TIME_LEN   19
 #define PREFIX_LEN 28
 #define FIXED_LEN  (PREFIX_LEN + 1)
@@ -48,11 +43,6 @@ nth_b8 nth_log_is_alive(void);
 
 static const char MSG[] = "narthex logger under test";
 
-/* Every test tears the logger down and restores stderr before its first
-   assertion, so a failure can never leak a live logger or a redirected stderr
-   into the next test. Intermediate observations go into locals. */
-
-
 /* ================================================================================ */
 /*  STDERR CAPTURE                                                                  */
 /* ================================================================================ */
@@ -60,8 +50,6 @@ static const char MSG[] = "narthex logger under test";
 static char      g_cap[CAP_MAX];
 static nth_usize g_cap_len;
 
-/* The capture is the only way to see the logger's output, so losing it makes
-   every result meaningless. Report on stdout and give up. */
 static void cap_fail(const char *what) {
     fprintf(stdout, "capture: %s failed\n", what);
     exit(EXIT_FAILURE);
@@ -93,7 +81,6 @@ static void cap_begin(void) {
     if (g_cap_wr == INVALID_HANDLE_VALUE)
         cap_fail("CreateFileA write");
 
-    /* A second handle keeps the read cursor off the writer's file pointer. */
     g_cap_rd = CreateFileA(g_cap_path, GENERIC_READ, share, NULL,
                            OPEN_EXISTING, FILE_ATTRIBUTE_TEMPORARY, NULL);
     if (g_cap_rd == INVALID_HANDLE_VALUE)
@@ -104,7 +91,6 @@ static void cap_begin(void) {
         cap_fail("SetStdHandle");
 }
 
-/* Reloads everything written so far, leaving the redirect in place. */
 static nth_usize cap_sync(void) {
     nth_usize n = 0;
 
@@ -169,7 +155,6 @@ static void cap_begin(void) {
     if (g_cap_wr < 0)
         cap_fail("mkstemp");
 
-    /* A second descriptor keeps the read cursor off the writer's offset. */
     g_cap_rd = open(path, O_RDONLY);
     if (g_cap_rd < 0)
         cap_fail("open");
@@ -183,7 +168,6 @@ static void cap_begin(void) {
         cap_fail("dup2");
 }
 
-/* Reloads everything written so far, leaving the redirect in place. */
 static nth_usize cap_sync(void) {
     nth_usize n = 0;
 
@@ -236,13 +220,10 @@ static nth_usize cap_end(void) {
 
 #endif
 
-
 /* ================================================================================ */
 /*  LINE INSPECTION                                                                 */
 /* ================================================================================ */
 
-/* Advances *cur past one line and returns its start, or NULL at the end.
-   *len receives the length without the newline. */
 static const char *line_next(const char **cur, nth_usize *len) {
     const char *p  = *cur;
     const char *nl;
@@ -261,7 +242,6 @@ static const char *line_next(const char **cur, nth_usize *len) {
     return p;
 }
 
-/* The whole capture, only when it holds exactly one complete line. */
 static const char *single_line(nth_usize *len) {
     const char *cur  = g_cap;
     const char *line = line_next(&cur, len);
@@ -308,7 +288,6 @@ static nth_b8 line_is(const char *line, nth_usize len, const char *level, const 
                     memcmp(line + PREFIX_LEN, body, n) == 0);
 }
 
-/* The stamp the logger should be producing, taken from the C library. */
 static void stamp_now(char *out) {
     const time_t now = time(NULL);
     struct tm    tmv;
@@ -321,7 +300,6 @@ static void stamp_now(char *out) {
 
     strftime(out, 20, "[%Y-%j %H:%M:%S]", &tmv);
 }
-
 
 /* ================================================================================ */
 /*  LIFE-CYCLE                                                                      */
@@ -346,7 +324,6 @@ static nth_b8 test_double_init(void) {
     const NthResult first  = nth_init_log(NULL);
     const NthResult second = nth_init_log(&desc);
 
-    /* The rejected call must not have swapped the buffer under the live one. */
     cap_begin();
     nth_log(NTH_LOG_LEVEL_INFO, MSG);
     nth_term_log();
@@ -423,8 +400,6 @@ static nth_b8 test_buffer_too_small(void) {
     return NTH_TRUE;
 }
 
-/* A zero buffer_size asks for the default, which has to be far larger than the
-   line below, otherwise the message comes back truncated. */
 static nth_b8 test_zero_size_uses_default(void) {
     NthLoggerDesc desc = {0};
     char          body[4001];
@@ -448,8 +423,6 @@ static nth_b8 test_zero_size_uses_default(void) {
     return NTH_TRUE;
 }
 
-/* The core owns the logger's life-cycle. A buffer too short for the line makes
-   the descriptor visible in the output: the default would not truncate. */
 static nth_b8 test_via_core(void) {
     const nth_usize size = 40;
     const nth_usize room = size - FIXED_LEN;
@@ -490,7 +463,6 @@ static nth_b8 test_dead_is_silent(void) {
     return NTH_TRUE;
 }
 
-
 /* ================================================================================ */
 /*  FORMAT                                                                          */
 /* ================================================================================ */
@@ -522,7 +494,6 @@ static nth_b8 test_levels(void) {
     return NTH_TRUE;
 }
 
-/* Anything past DEBUG is clamped rather than used to index the level table. */
 static nth_b8 test_level_clamped(void) {
     static const NthLogLevel over[] = { 5, 6, 42, 200, 255 };
     const nth_usize count = sizeof over / sizeof over[0];
@@ -547,8 +518,6 @@ static nth_b8 test_level_clamped(void) {
     return NTH_TRUE;
 }
 
-/* The hand rolled stamp has to land between two strftime readings taken around
-   the call, which is only true if every field is written correctly. */
 static nth_b8 test_timestamp(void) {
     char before[24];
     char after[24];
@@ -570,6 +539,104 @@ static nth_b8 test_timestamp(void) {
     NTH_TEST_ASSERT(line_is(line, len, "MSG", MSG));
     NTH_TEST_ASSERT(memcmp(line, before, TIME_LEN) >= 0);
     NTH_TEST_ASSERT(memcmp(line, after, TIME_LEN) <= 0);
+    return NTH_TRUE;
+}
+
+static nth_b8 test_logn_takes_length(void) {
+    const char *const none = NULL;
+
+    nth_init_log(NULL);
+
+    cap_begin();
+    nth_logn(NTH_LOG_LEVEL_INFO, MSG, sizeof MSG - 1);
+    nth_logn(NTH_LOG_LEVEL_WARN, MSG, 7);
+    nth_logn(NTH_LOG_LEVEL_ERROR, "", 0);
+    nth_logn(NTH_LOG_LEVEL_INFO, none, 4);
+    nth_term_log();
+    cap_end();
+
+    const char *cur = g_cap;
+    nth_usize   len;
+    const char *line;
+
+    line = line_next(&cur, &len);
+    NTH_TEST_ASSERT(line != NULL);
+    NTH_TEST_ASSERT(line_is(line, len, "MSG", MSG));
+
+    line = line_next(&cur, &len);
+    NTH_TEST_ASSERT(line != NULL);
+    NTH_TEST_ASSERT(prefix_ok(line, len, "WRN"));
+    NTH_TEST_ASSERT(len == PREFIX_LEN + 7);
+    NTH_TEST_ASSERT(memcmp(line + PREFIX_LEN, MSG, 7) == 0);
+
+    line = line_next(&cur, &len);
+    NTH_TEST_ASSERT(line != NULL);
+    NTH_TEST_ASSERT(line_is(line, len, "ERR", ""));
+
+    NTH_TEST_ASSERT(*cur == '\0');
+    return NTH_TRUE;
+}
+
+static nth_b8 test_logn_embedded_nul(void) {
+    static const char RAW[] = "abc\0def";
+    const nth_usize   raw_len = sizeof RAW - 1;
+
+    nth_init_log(NULL);
+
+    cap_begin();
+    nth_logn(NTH_LOG_LEVEL_INFO, RAW, raw_len);
+    nth_term_log();
+    const nth_usize n = cap_end();
+
+    NTH_TEST_ASSERT(n == PREFIX_LEN + raw_len + 1);
+    NTH_TEST_ASSERT(prefix_ok(g_cap, n - 1, "MSG"));
+    NTH_TEST_ASSERT(memcmp(g_cap + PREFIX_LEN, RAW, raw_len) == 0);
+    NTH_TEST_ASSERT(g_cap[n - 1] == '\n');
+    return NTH_TRUE;
+}
+
+static nth_b8 test_logn_matches_log(void) {
+    nth_init_log(NULL);
+
+    cap_begin();
+    nth_log(NTH_LOG_LEVEL_INFO, MSG);
+    const nth_usize one = cap_sync();
+    nth_logn(NTH_LOG_LEVEL_INFO, MSG, sizeof MSG - 1);
+    nth_term_log();
+    const nth_usize two = cap_end();
+
+    NTH_TEST_ASSERT(one == 0);
+    NTH_TEST_ASSERT(two % 2 == 0);
+    NTH_TEST_ASSERT(memcmp(g_cap, g_cap + two / 2, two / 2) == 0);
+    return NTH_TRUE;
+}
+
+static nth_b8 test_logn_truncates(void) {
+    const nth_usize size = 64;
+    const nth_usize room = size - FIXED_LEN;
+    char body[256];
+
+    for (nth_usize i = 0; i < sizeof body; i++)
+        body[i] = (char)('a' + (i % 26));
+
+    NthLoggerDesc desc = {0};
+    desc.buffer_size = size;
+
+    const NthResult r = nth_init_log(&desc);
+
+    cap_begin();
+    nth_logn(NTH_LOG_LEVEL_INFO, body, sizeof body);
+    nth_term_log();
+    const nth_usize n = cap_end();
+
+    nth_usize   len;
+    const char *line = single_line(&len);
+
+    NTH_TEST_ASSERT(r == NTH_RESULT_OK);
+    NTH_TEST_ASSERT(n == size);
+    NTH_TEST_ASSERT(line != NULL);
+    NTH_TEST_ASSERT(len == PREFIX_LEN + room);
+    NTH_TEST_ASSERT(memcmp(line + PREFIX_LEN, body, room) == 0);
     return NTH_TRUE;
 }
 
@@ -596,7 +663,7 @@ static nth_b8 test_logf_args(void) {
 }
 
 static nth_b8 test_null_and_empty(void) {
-    /* Through a variable, so the compiler cannot fold the null format away. */
+    
     const char *const none = NULL;
 
     nth_init_log(NULL);
@@ -625,7 +692,6 @@ static nth_b8 test_null_and_empty(void) {
     NTH_TEST_ASSERT(*cur == '\0');
     return NTH_TRUE;
 }
-
 
 /* ================================================================================ */
 /*  BUFFERING                                                                       */
@@ -687,8 +753,6 @@ static nth_b8 test_term_flushes(void) {
     return NTH_TRUE;
 }
 
-/* A buffer holding exactly three lines: every fourth write has to push the
-   pending three out before it can reserve its own room. */
 static nth_b8 test_auto_flush_on_full(void) {
     const nth_usize body_len = 8;
     const nth_usize line_len = PREFIX_LEN + body_len + 1;
@@ -709,7 +773,7 @@ static nth_b8 test_auto_flush_on_full(void) {
     cap_end();
 
     NTH_TEST_ASSERT(r == NTH_RESULT_OK);
-    /* Nine lines out, the tenth still buffered. */
+    
     NTH_TEST_ASSERT(pending == 9 * line_len);
     NTH_TEST_ASSERT(g_cap_len == count * line_len);
 
@@ -752,12 +816,10 @@ static nth_b8 test_flush_each(void) {
     return NTH_TRUE;
 }
 
-
 /* ================================================================================ */
 /*  TRUNCATION                                                                      */
 /* ================================================================================ */
 
-/* A message too long for the buffer is cut so the line fills it exactly. */
 static nth_b8 test_truncate_to_buffer(void) {
     const nth_usize size = 64;
     const nth_usize room = size - FIXED_LEN;
@@ -789,7 +851,6 @@ static nth_b8 test_truncate_to_buffer(void) {
     return NTH_TRUE;
 }
 
-/* The smallest buffer the logger accepts still has to produce a whole line. */
 static nth_b8 test_truncate_min_buffer(void) {
     NthLoggerDesc desc = {0};
     desc.buffer_size = MIN_BUFFER;
@@ -811,8 +872,6 @@ static nth_b8 test_truncate_min_buffer(void) {
     return NTH_TRUE;
 }
 
-/* nth_logf formats through a fixed scratch buffer before the message ever
-   reaches the ring, so it has its own cut off. */
 static nth_b8 test_truncate_format_max(void) {
     char body[FORMAT_MAX + 512];
 
@@ -837,13 +896,10 @@ static nth_b8 test_truncate_format_max(void) {
     return NTH_TRUE;
 }
 
-
 /* ================================================================================ */
 /*  STRESS                                                                          */
 /* ================================================================================ */
 
-/* Thousands of lines through a three line buffer: nothing may be dropped,
-   duplicated or reordered across the flushes. */
 static nth_b8 test_stress_sequential(void) {
     const nth_usize body_len = 8;
     const nth_usize line_len = PREFIX_LEN + body_len + 1;
@@ -888,8 +944,6 @@ static void worker_run(void *arg) {
     const nth_u32 id = *(const nth_u32 *)arg;
     char line[32];
 
-    /* Odd workers format in place, even ones hand over a ready string, so both
-       entry points contend for the buffer at the same time. */
     for (nth_u32 i = 0; i < TH_LINES; i++) {
         if ((id & 1u) == 0u) {
             snprintf(line, sizeof line, "t%u/%u", (unsigned)id, (unsigned)i);
@@ -929,8 +983,6 @@ static void thread_join(TestThread t) {
 
 static nth_u8 g_seen[TH_COUNT * TH_LINES];
 
-/* Concurrent writers reserve their slice under the lock and fill it after
-   releasing it, so every line still has to come out whole and exactly once. */
 static nth_b8 test_stress_threads(void) {
     TestThread th[TH_COUNT];
     nth_u32    id[TH_COUNT];
@@ -938,7 +990,7 @@ static nth_b8 test_stress_threads(void) {
     memset(g_seen, 0, sizeof g_seen);
 
     NthLoggerDesc desc = {0};
-    desc.buffer_size = 1024; /* small enough that the flushes overlap the writers */
+    desc.buffer_size = 1024; 
 
     const NthResult r = nth_init_log(&desc);
 
@@ -978,7 +1030,6 @@ static nth_b8 test_stress_threads(void) {
     return NTH_TRUE;
 }
 
-
 int main(void) {
     NthTest tests[] = {
         { "lifecycle/init_term",       test_init_term            },
@@ -992,6 +1043,10 @@ int main(void) {
         { "format/levels",             test_levels               },
         { "format/level_clamped",      test_level_clamped        },
         { "format/timestamp",          test_timestamp            },
+        { "format/logn_length",        test_logn_takes_length    },
+        { "format/logn_embedded_nul",  test_logn_embedded_nul    },
+        { "format/logn_matches_log",   test_logn_matches_log     },
+        { "format/logn_truncates",     test_logn_truncates       },
         { "format/logf_args",          test_logf_args            },
         { "format/null_and_empty",     test_null_and_empty       },
         { "buffer/holds_until_flush",  test_holds_until_flush    },

@@ -20,6 +20,7 @@ enum {
 
 
 void nth_log(NthLogLevel level, const char *msg);
+void nth_logn(NthLogLevel level, const char *msg, nth_usize len);
 void nth_logf(NthLogLevel level, const char *fmt, ...);
 
 void nth_flush(void);

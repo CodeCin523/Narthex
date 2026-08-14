@@ -97,7 +97,7 @@ static void log_update_time(time_t now) {
     t[18] = ']';
 }
 
-static void log_write_prefix(nth_usize index, NthLogLevel level) {
+static void log_write_prefix(nth_usize index, NthLogLevel level, const char *stamp) {
     static const char LEVEL_NAME[5][3] = {
         "FTL",
         "ERR",
@@ -108,7 +108,7 @@ static void log_write_prefix(nth_usize index, NthLogLevel level) {
 
     char *b = g_log.buf + index;
 
-    memcpy(b, g_log.time, LOG_TIME_SIZE);
+    memcpy(b, stamp, LOG_TIME_SIZE);
     b += LOG_TIME_SIZE;
 
     *b++ = ' ';
@@ -176,35 +176,40 @@ static void log_flush_locked(void) {
 /* ================================================================================ */
 
 static void log_append(NthLogLevel level, const char *msg, nth_usize len) {
-    if (!nth_lifecycle_is_alive(&g_log.life))
+    if (NTH_UNLIKELY(!nth_lifecycle_is_alive(&g_log.life)))
         return;
-    if (level > NTH_LOG_LEVEL_DEBUG)
+    if (NTH_UNLIKELY(level > NTH_LOG_LEVEL_DEBUG))
         level = NTH_LOG_LEVEL_DEBUG;
 
+    const nth_usize cap = g_log.buf_size;
     nth_usize full = LOG_FIXED_SIZE + len;
+    char stamp[LOG_TIME_SIZE];
+
+    if (NTH_UNLIKELY(full > cap)) {
+        len  = cap - LOG_FIXED_SIZE;
+        full = cap;
+    }
+
+    const time_t now = time(NULL);
 
     nth_mutex_lock(&g_log.lock);
 
-    if (full > g_log.buf_size) {
-        len  = g_log.buf_size - LOG_FIXED_SIZE;
-        full = g_log.buf_size;
-    }
-    if (g_log.buf_size - g_log.buf_index < full)
+    if (NTH_UNLIKELY(cap - g_log.buf_index < full))
         log_flush_locked();
 
-    const time_t now = time(NULL);
-    if (now != g_log.last_time) {
+    if (NTH_UNLIKELY(now > g_log.last_time)) {
         g_log.last_time = now;
         log_update_time(now);
     }
+    memcpy(stamp, g_log.time, LOG_TIME_SIZE);
 
     const nth_usize i = g_log.buf_index;
     g_log.buf_index = i + full;
-    log_write_prefix(i, level);
     nth_atomic_fetch_add_relaxed_u32(&g_log.inflight, 1);
 
     nth_mutex_unlock(&g_log.lock);
 
+    log_write_prefix(i, level, stamp);
     memcpy(g_log.buf + i + LOG_PREFIX_SIZE, msg, len);
     g_log.buf[i + full - 1] = '\n';
 
@@ -215,10 +220,17 @@ static void log_append(NthLogLevel level, const char *msg, nth_usize len) {
 }
 
 void nth_log(NthLogLevel level, const char *msg) {
-    if (msg == NULL)
+    if (NTH_UNLIKELY(msg == NULL))
         return;
 
     log_append(level, msg, strlen(msg));
+}
+
+void nth_logn(NthLogLevel level, const char *msg, nth_usize len) {
+    if (NTH_UNLIKELY(msg == NULL))
+        return;
+
+    log_append(level, msg, len);
 }
 
 void nth_logf(NthLogLevel level, const char *fmt, ...) {
@@ -226,14 +238,14 @@ void nth_logf(NthLogLevel level, const char *fmt, ...) {
     va_list ap;
     int n;
 
-    if (fmt == NULL)
+    if (NTH_UNLIKELY(fmt == NULL))
         return;
 
     va_start(ap, fmt);
     n = vsnprintf(tmp, sizeof tmp, fmt, ap);
     va_end(ap);
 
-    if (n < 0)
+    if (NTH_UNLIKELY(n < 0))
         return;
 
     nth_usize len = (nth_usize)n;
@@ -244,7 +256,7 @@ void nth_logf(NthLogLevel level, const char *fmt, ...) {
 }
 
 void nth_flush(void) {
-    if (!nth_lifecycle_is_alive(&g_log.life))
+    if (NTH_UNLIKELY(!nth_lifecycle_is_alive(&g_log.life)))
         return;
 
     nth_mutex_lock(&g_log.lock);
