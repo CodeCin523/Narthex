@@ -25,6 +25,7 @@ cmake --build build
 
 | Option | Default | What it does |
 |---|---|---|
+| `NTH_SHARED` | `ON` | Build `libnarthex.so` / `narthex.dll`. Off builds `libnarthex.a`. |
 | `NTH_BUILD_TESTS` | `OFF` | Build the test suite and enable CTest. |
 | `NTH_ENABLE_vulkan` | `ON` | Vulkan render backend. |
 | `NTH_POISON` | `OFF` | Fill discarded arena memory with `0xDD`, fresh allocations with `0xCD`. |
@@ -34,6 +35,12 @@ cmake --build build
 Module dependencies resolve on their own: enabling a module enables everything it
 declares in `DEPENDS`. No module declares one today.
 
+A module keeps its public header beside its source, in
+`modules/<name>/include/narthex/nth_<name>.h`, and only enabled modules install
+theirs. The installed tree merges into a single `narthex/` directory either way, so
+consumers always write `#include <narthex/nth_vulkan.h>` and never see the split.
+A disabled module leaves no header behind to include by mistake.
+
 `NTH_ASAN` and `NTH_UBSAN` apply to the library, the modules, and the tests
 together, because sanitizers need consistent instrumentation across the whole
 binary. Prefer these options over passing `-fsanitize=...` in `CMAKE_C_FLAGS`: on
@@ -42,6 +49,20 @@ you cannot do by adding flags.
 
 Consumers linking `libnarthex.a` must use the same sanitizer flags the library was
 built with, or the link fails on missing sanitizer runtime symbols.
+
+## Symbol visibility
+
+A shared build compiles with `-fvisibility=hidden` and exports only what is marked
+`NTH_API` in the public headers. Nothing else leaves the library, so the internal
+functions are unreachable from outside even though they have external linkage.
+
+`NTH_API` lives in `<narthex/utils/api.h>` and resolves against `NTH_SHARED`, which
+`nth_config.h` records at configure time. That is what keeps a consumer of a static
+build from being handed `__declspec(dllimport)`, and it means the header set matches
+the artifact it was installed beside. `NTH_API` is empty in a static build.
+
+Declaring a new public function means marking it `NTH_API`. Leaving it off builds
+and links fine in a static build and fails at link time in a shared one.
 
 ## Tests
 
@@ -87,8 +108,8 @@ are linking against.
 
 | Path | Contents |
 |---|---|
-| `include/narthex/` | Public API. `utils/`, `inl/`, `mem/`, and the umbrella headers. |
-| `src/` | Base modules, always compiled. |
-| `modules/` | Optional modules, declared in `modules.cmake`. |
+| `include/narthex/` | Public API of the base modules. `utils/`, `inl/`, `mem/`, and the umbrella headers. |
+| `src/` | The library itself, always compiled. One target, one `CMakeLists.txt`. |
+| `modules/<name>/` | Optional modules, declared in `modules.cmake`. Public header in `modules/<name>/include/narthex/`. |
 | `cmake/` | Module system, config generation, install rules. |
 | `tests/` | CTest suites. |

@@ -36,8 +36,6 @@
 #endif
 
 
-NthResult nth_init_log(const NthLoggerDesc *desc);
-void nth_term_log(void);
 
 
 #define OPS_DEFAULT 2000000u
@@ -772,8 +770,8 @@ static void print_latency(void) {
 
 
 int main(int argc, char **argv) {
-    NthLoggerDesc desc = {0};
-    desc.buffer_size = BUF_SIZE;
+    NthCoreDesc desc = {0};
+    desc.logger.buffer_size = BUF_SIZE;
 
     if (argc > 1) {
         const long ops = strtol(argv[1], NULL, 10);
@@ -790,8 +788,8 @@ int main(int argc, char **argv) {
         printf("could not redirect stderr\n");
         return EXIT_FAILURE;
     }
-    if (nth_init_log(&desc) != NTH_RESULT_OK) {
-        printf("nth_init_log failed\n");
+    if (nth_init(&desc) != NTH_RESULT_OK) {
+        printf("nth_init failed\n");
         return EXIT_FAILURE;
     }
 
@@ -814,7 +812,7 @@ int main(int argc, char **argv) {
     bench_latency();
     cold_teardown();
 
-    nth_term_log();
+    nth_term();
 
     print_results();
     print_latency();

@@ -26,9 +26,15 @@
     #include <unistd.h>
 #endif
 
-NthResult nth_init_log(const NthLoggerDesc *desc);
-void nth_term_log(void);
-nth_b8 nth_log_is_alive(void);
+static NthResult init_logger(const NthLoggerDesc *desc) {
+    NthCoreDesc core = {0};
+
+    if (desc == NULL)
+        return nth_init(NULL);
+
+    core.logger = *desc;
+    return nth_init(&core);
+}
 
 #define TIME_LEN   19
 #define PREFIX_LEN 28
@@ -306,14 +312,23 @@ static void stamp_now(char *out) {
 /* ================================================================================ */
 
 static nth_b8 test_init_term(void) {
-    const NthResult r     = nth_init_log(NULL);
-    const nth_b8    alive = nth_log_is_alive();
+    const NthResult r = init_logger(NULL);
 
-    nth_term_log();
+    cap_begin();
+    nth_log(NTH_LOG_LEVEL_INFO, MSG);
+    nth_flush();
+    const nth_usize live = cap_end();
+
+    nth_term();
+
+    cap_begin();
+    nth_log(NTH_LOG_LEVEL_INFO, MSG);
+    nth_flush();
+    const nth_usize dead = cap_end();
 
     NTH_TEST_ASSERT(r == NTH_RESULT_OK);
-    NTH_TEST_ASSERT(alive);
-    NTH_TEST_ASSERT(!nth_log_is_alive());
+    NTH_TEST_ASSERT(live > 0);
+    NTH_TEST_ASSERT(dead == 0);
     return NTH_TRUE;
 }
 
@@ -321,12 +336,12 @@ static nth_b8 test_double_init(void) {
     NthLoggerDesc desc = {0};
     desc.buffer_size = MIN_BUFFER;
 
-    const NthResult first  = nth_init_log(NULL);
-    const NthResult second = nth_init_log(&desc);
+    const NthResult first  = init_logger(NULL);
+    const NthResult second = init_logger(&desc);
 
     cap_begin();
     nth_log(NTH_LOG_LEVEL_INFO, MSG);
-    nth_term_log();
+    nth_term();
     cap_end();
 
     nth_usize   len;
@@ -340,14 +355,13 @@ static nth_b8 test_double_init(void) {
 }
 
 static nth_b8 test_term_when_dead(void) {
-    nth_term_log();
+    nth_term();
 
-    const NthResult r = nth_init_log(NULL);
-    nth_term_log();
-    nth_term_log();
+    const NthResult r = init_logger(NULL);
+    nth_term();
+    nth_term();
 
     NTH_TEST_ASSERT(r == NTH_RESULT_OK);
-    NTH_TEST_ASSERT(!nth_log_is_alive());
     return NTH_TRUE;
 }
 
@@ -356,9 +370,9 @@ static nth_b8 test_reinit(void) {
 
     cap_begin();
     for (nth_u32 i = 0; i < 3; i++) {
-        r[i] = nth_init_log(NULL);
+        r[i] = init_logger(NULL);
         nth_logf(NTH_LOG_LEVEL_INFO, "cycle %u", (unsigned)i);
-        nth_term_log();
+        nth_term();
     }
     cap_end();
 
@@ -384,19 +398,17 @@ static nth_b8 test_buffer_too_small(void) {
 
     for (nth_usize size = 1; size < MIN_BUFFER; size++) {
         desc.buffer_size = size;
-        rejected[size]   = nth_init_log(&desc);
+        rejected[size]   = init_logger(&desc);
     }
 
-    desc.buffer_size      = MIN_BUFFER;
-    const NthResult ok    = nth_init_log(&desc);
-    const nth_b8    alive = nth_log_is_alive();
-    nth_term_log();
+    desc.buffer_size   = MIN_BUFFER;
+    const NthResult ok = init_logger(&desc);
+    nth_term();
 
     for (nth_usize size = 1; size < MIN_BUFFER; size++)
         NTH_TEST_ASSERT(rejected[size] == NTH_RESULT_INVALID_ARGUMENT);
 
     NTH_TEST_ASSERT(ok == NTH_RESULT_OK);
-    NTH_TEST_ASSERT(alive);
     return NTH_TRUE;
 }
 
@@ -407,11 +419,11 @@ static nth_b8 test_zero_size_uses_default(void) {
     memset(body, 'z', sizeof body - 1);
     body[sizeof body - 1] = '\0';
 
-    const NthResult r = nth_init_log(&desc);
+    const NthResult r = init_logger(&desc);
 
     cap_begin();
     nth_log(NTH_LOG_LEVEL_INFO, body);
-    nth_term_log();
+    nth_term();
     cap_end();
 
     nth_usize   len;
@@ -446,12 +458,11 @@ static nth_b8 test_via_core(void) {
     NTH_TEST_ASSERT(n == size);
     NTH_TEST_ASSERT(len == PREFIX_LEN + room);
     NTH_TEST_ASSERT(memcmp(line + PREFIX_LEN, MSG, room) == 0);
-    NTH_TEST_ASSERT(!nth_log_is_alive());
     return NTH_TRUE;
 }
 
 static nth_b8 test_dead_is_silent(void) {
-    NTH_TEST_ASSERT(!nth_log_is_alive());
+    nth_term(); /* do not inherit the dead state from the previous test */
 
     cap_begin();
     nth_log(NTH_LOG_LEVEL_FATAL, MSG);
@@ -474,12 +485,12 @@ static nth_b8 test_levels(void) {
         NTH_LOG_LEVEL_INFO,  NTH_LOG_LEVEL_DEBUG
     };
 
-    nth_init_log(NULL);
+    init_logger(NULL);
 
     cap_begin();
     for (nth_usize i = 0; i < 5; i++)
         nth_log(level[i], MSG);
-    nth_term_log();
+    nth_term();
     cap_end();
 
     const char *cur = g_cap;
@@ -498,12 +509,12 @@ static nth_b8 test_level_clamped(void) {
     static const NthLogLevel over[] = { 5, 6, 42, 200, 255 };
     const nth_usize count = sizeof over / sizeof over[0];
 
-    nth_init_log(NULL);
+    init_logger(NULL);
 
     cap_begin();
     for (nth_usize i = 0; i < count; i++)
         nth_log(over[i], MSG);
-    nth_term_log();
+    nth_term();
     cap_end();
 
     const char *cur = g_cap;
@@ -522,14 +533,14 @@ static nth_b8 test_timestamp(void) {
     char before[24];
     char after[24];
 
-    nth_init_log(NULL);
+    init_logger(NULL);
 
     cap_begin();
     stamp_now(before);
     nth_log(NTH_LOG_LEVEL_INFO, MSG);
     nth_flush();
     stamp_now(after);
-    nth_term_log();
+    nth_term();
     cap_end();
 
     nth_usize   len;
@@ -545,14 +556,14 @@ static nth_b8 test_timestamp(void) {
 static nth_b8 test_logn_takes_length(void) {
     const char *const none = NULL;
 
-    nth_init_log(NULL);
+    init_logger(NULL);
 
     cap_begin();
     nth_logn(NTH_LOG_LEVEL_INFO, MSG, sizeof MSG - 1);
     nth_logn(NTH_LOG_LEVEL_WARN, MSG, 7);
     nth_logn(NTH_LOG_LEVEL_ERROR, "", 0);
     nth_logn(NTH_LOG_LEVEL_INFO, none, 4);
-    nth_term_log();
+    nth_term();
     cap_end();
 
     const char *cur = g_cap;
@@ -581,11 +592,11 @@ static nth_b8 test_logn_embedded_nul(void) {
     static const char RAW[] = "abc\0def";
     const nth_usize   raw_len = sizeof RAW - 1;
 
-    nth_init_log(NULL);
+    init_logger(NULL);
 
     cap_begin();
     nth_logn(NTH_LOG_LEVEL_INFO, RAW, raw_len);
-    nth_term_log();
+    nth_term();
     const nth_usize n = cap_end();
 
     NTH_TEST_ASSERT(n == PREFIX_LEN + raw_len + 1);
@@ -596,13 +607,13 @@ static nth_b8 test_logn_embedded_nul(void) {
 }
 
 static nth_b8 test_logn_matches_log(void) {
-    nth_init_log(NULL);
+    init_logger(NULL);
 
     cap_begin();
     nth_log(NTH_LOG_LEVEL_INFO, MSG);
     const nth_usize one = cap_sync();
     nth_logn(NTH_LOG_LEVEL_INFO, MSG, sizeof MSG - 1);
-    nth_term_log();
+    nth_term();
     const nth_usize two = cap_end();
 
     NTH_TEST_ASSERT(one == 0);
@@ -622,11 +633,11 @@ static nth_b8 test_logn_truncates(void) {
     NthLoggerDesc desc = {0};
     desc.buffer_size = size;
 
-    const NthResult r = nth_init_log(&desc);
+    const NthResult r = init_logger(&desc);
 
     cap_begin();
     nth_logn(NTH_LOG_LEVEL_INFO, body, sizeof body);
-    nth_term_log();
+    nth_term();
     const nth_usize n = cap_end();
 
     nth_usize   len;
@@ -647,11 +658,11 @@ static nth_b8 test_logf_args(void) {
 
     snprintf(want, sizeof want, FMT, "text", -7, 42u, 3.5, 'x', ptr);
 
-    nth_init_log(NULL);
+    init_logger(NULL);
 
     cap_begin();
     nth_logf(NTH_LOG_LEVEL_DEBUG, FMT, "text", -7, 42u, 3.5, 'x', ptr);
-    nth_term_log();
+    nth_term();
     cap_end();
 
     nth_usize   len;
@@ -666,7 +677,7 @@ static nth_b8 test_null_and_empty(void) {
     
     const char *const none = NULL;
 
-    nth_init_log(NULL);
+    init_logger(NULL);
 
     cap_begin();
     nth_log(NTH_LOG_LEVEL_INFO, none);
@@ -676,7 +687,7 @@ static nth_b8 test_null_and_empty(void) {
 
     nth_log(NTH_LOG_LEVEL_INFO, "");
     nth_logf(NTH_LOG_LEVEL_INFO, "");
-    nth_term_log();
+    nth_term();
     cap_end();
 
     const char *cur = g_cap;
@@ -698,7 +709,7 @@ static nth_b8 test_null_and_empty(void) {
 /* ================================================================================ */
 
 static nth_b8 test_holds_until_flush(void) {
-    nth_init_log(NULL);
+    init_logger(NULL);
 
     cap_begin();
     nth_log(NTH_LOG_LEVEL_INFO, MSG);
@@ -707,7 +718,7 @@ static nth_b8 test_holds_until_flush(void) {
     nth_flush();
     const nth_usize after = cap_sync();
 
-    nth_term_log();
+    nth_term();
     cap_end();
 
     nth_usize   len;
@@ -721,13 +732,13 @@ static nth_b8 test_holds_until_flush(void) {
 }
 
 static nth_b8 test_flush_when_empty(void) {
-    nth_init_log(NULL);
+    init_logger(NULL);
 
     cap_begin();
     nth_flush();
     nth_flush();
     const nth_usize n = cap_sync();
-    nth_term_log();
+    nth_term();
     const nth_usize after_term = cap_end();
 
     NTH_TEST_ASSERT(n == 0);
@@ -736,12 +747,12 @@ static nth_b8 test_flush_when_empty(void) {
 }
 
 static nth_b8 test_term_flushes(void) {
-    nth_init_log(NULL);
+    init_logger(NULL);
 
     cap_begin();
     nth_log(NTH_LOG_LEVEL_INFO, MSG);
     const nth_usize before = cap_sync();
-    nth_term_log();
+    nth_term();
     cap_end();
 
     nth_usize   len;
@@ -761,7 +772,7 @@ static nth_b8 test_auto_flush_on_full(void) {
     NthLoggerDesc desc = {0};
     desc.buffer_size = line_len * 3;
 
-    const NthResult r = nth_init_log(&desc);
+    const NthResult r = init_logger(&desc);
 
     cap_begin();
     for (nth_usize i = 0; i < count; i++)
@@ -769,7 +780,7 @@ static nth_b8 test_auto_flush_on_full(void) {
     const nth_usize pending = cap_sync();
 
     nth_flush();
-    nth_term_log();
+    nth_term();
     cap_end();
 
     NTH_TEST_ASSERT(r == NTH_RESULT_OK);
@@ -798,7 +809,7 @@ static nth_b8 test_flush_each(void) {
     NthLoggerDesc desc = {0};
     desc.flush_each = NTH_TRUE;
 
-    const NthResult r = nth_init_log(&desc);
+    const NthResult r = init_logger(&desc);
 
     cap_begin();
     nth_log(NTH_LOG_LEVEL_INFO, MSG);
@@ -807,7 +818,7 @@ static nth_b8 test_flush_each(void) {
     nth_logf(NTH_LOG_LEVEL_INFO, "%s", MSG);
     const nth_usize two = cap_sync();
 
-    nth_term_log();
+    nth_term();
     cap_end();
 
     NTH_TEST_ASSERT(r == NTH_RESULT_OK);
@@ -832,11 +843,11 @@ static nth_b8 test_truncate_to_buffer(void) {
     NthLoggerDesc desc = {0};
     desc.buffer_size = size;
 
-    const NthResult r = nth_init_log(&desc);
+    const NthResult r = init_logger(&desc);
 
     cap_begin();
     nth_log(NTH_LOG_LEVEL_INFO, body);
-    nth_term_log();
+    nth_term();
     const nth_usize n = cap_end();
 
     nth_usize   len;
@@ -855,11 +866,11 @@ static nth_b8 test_truncate_min_buffer(void) {
     NthLoggerDesc desc = {0};
     desc.buffer_size = MIN_BUFFER;
 
-    const NthResult r = nth_init_log(&desc);
+    const NthResult r = init_logger(&desc);
 
     cap_begin();
     nth_log(NTH_LOG_LEVEL_ERROR, "ABCDEF");
-    nth_term_log();
+    nth_term();
     const nth_usize n = cap_end();
 
     nth_usize   len;
@@ -879,11 +890,11 @@ static nth_b8 test_truncate_format_max(void) {
         body[i] = (char)('A' + (i % 26));
     body[sizeof body - 1] = '\0';
 
-    nth_init_log(NULL);
+    init_logger(NULL);
 
     cap_begin();
     nth_logf(NTH_LOG_LEVEL_INFO, "%s", body);
-    nth_term_log();
+    nth_term();
     cap_end();
 
     nth_usize   len;
@@ -908,12 +919,12 @@ static nth_b8 test_stress_sequential(void) {
     NthLoggerDesc desc = {0};
     desc.buffer_size = line_len * 3;
 
-    const NthResult r = nth_init_log(&desc);
+    const NthResult r = init_logger(&desc);
 
     cap_begin();
     for (nth_usize i = 0; i < count; i++)
         nth_logf(NTH_LOG_LEVEL_INFO, "%08u", (unsigned)i);
-    nth_term_log();
+    nth_term();
     cap_end();
 
     NTH_TEST_ASSERT(r == NTH_RESULT_OK);
@@ -992,7 +1003,7 @@ static nth_b8 test_stress_threads(void) {
     NthLoggerDesc desc = {0};
     desc.buffer_size = 1024; 
 
-    const NthResult r = nth_init_log(&desc);
+    const NthResult r = init_logger(&desc);
 
     cap_begin();
     for (nth_u32 i = 0; i < TH_COUNT; i++) {
@@ -1001,7 +1012,7 @@ static nth_b8 test_stress_threads(void) {
     }
     for (nth_u32 i = 0; i < TH_COUNT; i++)
         thread_join(th[i]);
-    nth_term_log();
+    nth_term();
     cap_end();
 
     NTH_TEST_ASSERT(r == NTH_RESULT_OK);

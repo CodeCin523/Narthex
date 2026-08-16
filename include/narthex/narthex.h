@@ -3,6 +3,7 @@
 
 #include <narthex/nth_types.h>
 #include <narthex/nth_result.h>
+#include <narthex/utils/api.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,8 +20,8 @@ typedef struct NthCoreDesc {
 } NthCoreDesc;
 
 
-NthResult nth_init(const NthCoreDesc *desc);
-void nth_term(void);
+NTH_API NthResult nth_init(const NthCoreDesc *desc);
+NTH_API void nth_term(void);
 
 
 #ifdef __cplusplus

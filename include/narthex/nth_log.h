@@ -3,6 +3,7 @@
 
 #include <narthex/utils/build.h>
 #include <narthex/nth_types.h>
+#include <narthex/utils/api.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,11 +20,11 @@ enum {
 };
 
 
-void nth_log(NthLogLevel level, const char *msg);
-void nth_logn(NthLogLevel level, const char *msg, nth_usize len);
-void nth_logf(NthLogLevel level, const char *fmt, ...);
+NTH_API void nth_log(NthLogLevel level, const char *msg);
+NTH_API void nth_logn(NthLogLevel level, const char *msg, nth_usize len);
+NTH_API void nth_logf(NthLogLevel level, const char *fmt, ...);
 
-void nth_flush(void);
+NTH_API void nth_flush(void);
 
 
 #ifndef NTH_LOG_FATAL_ENABLED

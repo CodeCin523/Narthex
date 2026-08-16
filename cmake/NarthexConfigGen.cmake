@@ -8,6 +8,12 @@ foreach(c IN LISTS NTH_ALL_MODULES)
     endif()
 endforeach()
 
+if(NTH_SHARED)
+    set(NTH_CONFIG_SHARED 1)
+else()
+    set(NTH_CONFIG_SHARED 0)
+endif()
+
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/templates/nth_config.h.in
     ${CMAKE_CURRENT_BINARY_DIR}/include/narthex/nth_config.h

@@ -1,7 +1,7 @@
 #include <narthex/narthex.h>
 
 #include "lifecycle.h"
-#include "log/log_internal.h"
+#include "log_internal.h"
 
 
 static volatile NthLifecycle g_core;

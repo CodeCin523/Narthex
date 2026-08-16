@@ -18,6 +18,13 @@ install(TARGETS narthex
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
+foreach(c IN LISTS NTH_ENABLED_MODULES)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/modules/${c}/include)
+        install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/modules/${c}/include/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    endif()
+endforeach()
+
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/narthex/nth_config.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/narthex)
 

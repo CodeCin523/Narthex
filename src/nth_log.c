@@ -98,7 +98,7 @@ static void log_update_time(time_t now) {
 }
 
 static void log_write_prefix(nth_usize index, NthLogLevel level, const char *stamp) {
-    static const char LEVEL_NAME[5][3] = {
+    static const char LEVEL_NAME[5][4] = {
         "FTL",
         "ERR",
         "WRN",
@@ -320,8 +320,4 @@ void nth_term_log(void) {
     g_log.buf_size = 0;
 
     nth_lifecycle_end_term(&g_log.life);
-}
-
-nth_b8 nth_log_is_alive(void) {
-    return nth_lifecycle_is_alive(&g_log.life);
 }

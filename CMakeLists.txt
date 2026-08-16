@@ -8,11 +8,19 @@ include(modules.cmake)
 nth_resolve_modules()
 nth_print_summary()
 
-include(NarthexConfigGen)
-
+option(NTH_SHARED "Build narthex as a shared library" ON)
 option(NTH_POISON "Fill discarded arena memory with a pattern" OFF)
 option(NTH_ASAN   "Build with AddressSanitizer" OFF)
 option(NTH_UBSAN  "Build with UndefinedBehaviorSanitizer (not available on MSVC)" OFF)
+
+include(NarthexConfigGen)
+
+if(NTH_SHARED)
+    set(NTH_LIB_KIND SHARED)
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON) # object libraries do not inherit it
+else()
+    set(NTH_LIB_KIND STATIC)
+endif()
 
 if(NTH_ASAN)
     if(MSVC)
@@ -49,41 +57,31 @@ if(NTH_POISON)
     target_compile_definitions(nth_config INTERFACE NTH_POISON=1)
 endif()
 
-set(NTH_BASE_MODULES mem log core) # lifetime path loader
-foreach(m IN LISTS NTH_BASE_MODULES)
-    add_subdirectory(src/${m})
-endforeach()
+target_compile_features(nth_config INTERFACE c_std_17)
+
+target_compile_options(nth_config INTERFACE
+    $<$<C_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wshadow -Wvla>
+    $<$<C_COMPILER_ID:MSVC>:/W4>)
+
+target_compile_definitions(nth_config INTERFACE NTH_BUILDING=1)
+
+if(NTH_SHARED)
+    target_compile_options(nth_config INTERFACE
+        $<$<C_COMPILER_ID:GNU,Clang>:-fvisibility=hidden>)
+endif()
+
+add_subdirectory(src)
 
 foreach(c IN LISTS NTH_ALL_MODULES)
     if(NTH_ENABLE_${c})
         add_subdirectory(modules/${c})
+        target_sources(narthex PRIVATE $<TARGET_OBJECTS:nth_obj_${c}>)
+        if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/modules/${c}/include)
+            target_include_directories(narthex PUBLIC
+                $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/modules/${c}/include>)
+        endif()
     endif()
 endforeach()
-
-set(NTH_OBJECTS "")
-foreach(m IN LISTS NTH_BASE_MODULES)
-    list(APPEND NTH_OBJECTS $<TARGET_OBJECTS:nth_obj_${m}>)
-endforeach()
-foreach(c IN LISTS NTH_ALL_MODULES)
-    if(NTH_ENABLE_${c})
-        list(APPEND NTH_OBJECTS $<TARGET_OBJECTS:nth_obj_${c}>)
-    endif()
-endforeach()
-
-add_library(narthex ${NTH_OBJECTS})
-add_library(narthex::narthex ALIAS narthex)
-
-target_include_directories(narthex PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>)
-
-target_compile_features(narthex
-    PRIVATE   c_std_17
-    INTERFACE c_std_99)
-
-target_compile_options(narthex PRIVATE
-    $<$<C_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wshadow -Wvla>
-    $<$<C_COMPILER_ID:MSVC>:/W4>)
 
 include(NarthexInstall)
 

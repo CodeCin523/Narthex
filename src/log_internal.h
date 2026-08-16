@@ -10,7 +10,5 @@
 NthResult nth_init_log(const NthLoggerDesc *desc);
 void nth_term_log(void);
 
-nth_b8 nth_log_is_alive(void);
-
 
 #endif /* NTH_SRC_LOG_INTERNAL_H */
