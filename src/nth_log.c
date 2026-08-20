@@ -11,7 +11,6 @@
 #include <narthex/utils/platform.h>
 
 #include "lifecycle.h"
-#include "log_internal.h"
 #include "mutex.h"
 
 #include <errno.h>

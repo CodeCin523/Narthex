@@ -11,14 +11,14 @@ extern "C" {
 
 
 typedef struct NthPath {
-    nth_u8 *base;
+    nth_u8 *ptr;
     nth_u64 meta;
 } NthPath;
 typedef NthSpan NthPathView;
 
 
 NTH_API NthResult nth_setup_path(NthPath *path);
-NTH_API NthResult nth_setup_path_str(NthPath *path, const char *str);
+NTH_API NthResult nth_setup_path_cstr(NthPath *path, const char *str);
 NTH_API NthResult nth_setup_path_view(NthPath *path, NthPathView view);
 NTH_API void nth_teardown_path(NthPath *path);
 
