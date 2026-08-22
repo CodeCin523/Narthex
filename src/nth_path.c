@@ -267,6 +267,7 @@ void nth_path_set(NthPath *path, const char *str) {
 void nth_path_setn(NthPath *path, const char *str, nth_usize len) {
     NTH_DASSERT(NTH_UNLIKELY(path != NULL));
     NTH_CHECK(PATH_ALIVE(path->meta), (void)0);
+    // NTH_CHECK(len != 0, (void)0);
 
     if(NTH_UNLIKELY(path_grow(path, len) != NTH_RESULT_OK))
         return;
@@ -286,9 +287,10 @@ void nth_path_append(NthPath *path, const char *str) {
 void nth_path_appendn(NthPath *path, const char *str, nth_usize len) {
     NTH_DASSERT(NTH_UNLIKELY(path != NULL));
     NTH_CHECK(PATH_ALIVE(path->meta), (void)0);
+    NTH_CHECK(len != 0, (void)0);
 
     nth_usize cur = PATH_LEN(path->meta);
-    nth_b8 need_sep = cur > 0;
+    nth_b8 need_sep = cur > 0 && !PATH_IS_SEP(path->ptr[cur-1]);
     nth_usize new_len = cur + (need_sep ? 1 : 0) + len;
 
     if(NTH_UNLIKELY(path_grow(path, new_len) != NTH_RESULT_OK))
@@ -455,19 +457,19 @@ nth_b8 nth_path_is_absolute(const NthPath *path) {
 
     nth_usize len = PATH_LEN(path->meta);
     if(len == 0)
-        return 0;
-
-    if(PATH_IS_SEP(path->ptr[0]))
-        return NTH_TRUE;
+        return NTH_FALSE;
 
 #if NTH_PLATFORM_WINDOWS
     if(len >= 3 &&
        ((path->ptr[0] >= 'A' && path->ptr[0] <= 'Z') || (path->ptr[0] >= 'a' && path->ptr[0] <= 'z')) &&
        path->ptr[1] == ':' && PATH_IS_SEP(path->ptr[2]))
         return NTH_TRUE;
-#endif
-
+    if(PATH_IS_SEP(path->ptr[0]))
+        return NTH_TRUE;
     return NTH_FALSE;
+#else
+    return PATH_IS_SEP(path->ptr[0]) ? NTH_TRUE : NTH_FALSE;
+#endif
 }
 nth_b8 nth_path_is_relative(const NthPath *path) {
     NTH_DASSERT(NTH_UNLIKELY(path != NULL));
@@ -481,17 +483,14 @@ NthPathView nth_path_filename(const NthPath *path) {
     NTH_CHECK(PATH_ALIVE(path->meta), view);
 
     nth_usize len = PATH_LEN(path->meta);
-    nth_usize end = len;
-
-    while(end > 0 && PATH_IS_SEP(path->ptr[end - 1])) end--;
-    if(end == 0)
+    if(len == 0 || PATH_IS_SEP(path->ptr[len - 1]))
         return view;
 
-    nth_usize start = end;
+    nth_usize start = len;
     while(start > 0 && !PATH_IS_SEP(path->ptr[start - 1])) start--;
 
     view.base = &path->ptr[start];
-    view.size = end - start;
+    view.size = len - start;
     return view;
 }
 NthPathView nth_path_directory(const NthPath *path) {
@@ -503,15 +502,34 @@ NthPathView nth_path_directory(const NthPath *path) {
     nth_usize end = len;
     while(end > 0 && PATH_IS_SEP(path->ptr[end - 1])) end--;
 
+    if(end == 0) {
+        view.base = path->ptr;
+        view.size = (len > 0) ? 1 : 0; /* "/", "///", "" -> canonical root or empty */
+        return view;
+    }
+
     nth_usize start = end;
     while(start > 0 && !PATH_IS_SEP(path->ptr[start - 1])) start--;
 
-    nth_usize dir_end = start;
-    while(dir_end > 1 && PATH_IS_SEP(path->ptr[dir_end - 1]))
-        dir_end--;
+    if(start == 0) {
+        view.base = path->ptr;
+        view.size = 0; /* no separator anywhere -> no directory part */
+        return view;
+    }
 
-    view.base = path->ptr;
-    view.size = dir_end;
+    if(end == len) {
+        /* no trailing separator: split off the filename */
+        nth_usize dir_end = start;
+        while(dir_end > 1 && PATH_IS_SEP(path->ptr[dir_end - 1]))
+            dir_end--;
+        view.base = path->ptr;
+        view.size = dir_end;
+    } else {
+        /* trailing separator(s): no filename, whole trimmed path is the directory */
+        view.base = path->ptr;
+        view.size = end;
+    }
+
     return view;
 }
 NthPathView nth_path_extension(const NthPath *path) {
@@ -521,9 +539,14 @@ NthPathView nth_path_extension(const NthPath *path) {
         return view;
 
     nth_usize i = fname.size;
-    while(i > 1) { /* i > 1 so a leading dot (dotfile) never counts as an extension */
+    while(i > 1) {
         i--;
         if(fname.base[i] == '.') {
+            nth_usize j = 0;
+            while(j < i && fname.base[j] == '.') j++;
+            if(j == i)
+                return view; /* filename is all dots (".", "..", "...") -> no extension */
+
             view.base = &fname.base[i];
             view.size = fname.size - i;
             return view;
