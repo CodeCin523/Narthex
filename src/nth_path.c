@@ -63,7 +63,7 @@
 
 
 static struct {
-    NthLifecycle life;
+    volatile NthLifecycle life;
 
     const char *exe_dir;
     const char *cwd_dir;

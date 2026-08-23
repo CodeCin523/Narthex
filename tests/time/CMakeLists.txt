@@ -1,0 +1,5 @@
+add_executable(unit_uptime unit_uptime.c)
+target_link_libraries(unit_uptime PRIVATE narthex::narthex)
+target_include_directories(unit_uptime PRIVATE ${NTH_TEST_INCLUDE})
+add_test(NAME time/unit COMMAND unit_uptime)
+set_tests_properties(time/unit PROPERTIES LABELS "unit")

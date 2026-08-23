@@ -13,6 +13,9 @@ void nth_term_log(void);
 NthResult nth_init_path(const char *app_name);
 void nth_term_path(void);
 
+NthResult nth_init_uptime();
+void nth_term_uptime();
+
 
 NthResult nth_init(const NthCoreDesc *desc) {
     NthResult r = nth_lifecycle_begin_init(&g_core);
@@ -29,6 +32,11 @@ NthResult nth_init(const NthCoreDesc *desc) {
         nth_lifecycle_fail_init(&g_core);
         return r;
     }
+    r = nth_init_uptime();
+    if (r != NTH_RESULT_OK) {
+        nth_lifecycle_fail_init(&g_core);
+        return r;
+    }
 
     nth_lifecycle_end_init(&g_core);
     return NTH_RESULT_OK;
@@ -38,6 +46,7 @@ void nth_term(void) {
     if (nth_lifecycle_begin_term(&g_core) != NTH_RESULT_OK)
         return;
 
+    nth_term_uptime();
     nth_term_path();
     nth_term_log();
 
