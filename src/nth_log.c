@@ -5,12 +5,13 @@
 #include <narthex/nth_log.h>
 
 #include <narthex/inl/atomic.h>
+#include <narthex/inl/lifecycle.h>
 #include <narthex/narthex.h>
 #include <narthex/utils/arch.h>
 #include <narthex/utils/compiler.h>
 #include <narthex/utils/platform.h>
 
-#include "lifecycle.h"
+#include "internal.h"
 #include "mutex.h"
 
 #include <errno.h>
@@ -39,7 +40,6 @@
 /* life and inflight are the fields touched outside the lock, so each gets its
    own cache line to keep it from invalidating the lock holder's reads. */
 static NTH_ALIGNAS(NTH_CACHELINE) struct {
-    NTH_CACHE_ISOLATE(volatile NthLifecycle, life);
     NTH_CACHE_ISOLATE(volatile nth_u32, inflight);
 
     char      *buf;
@@ -160,8 +160,7 @@ static void log_raw_write(const char *p, nth_usize n) {
 
 /* Caller holds the lock. Waits for in flight writers before touching the buffer. */
 static void log_flush_locked(void) {
-    while (nth_atomic_load_acquire_u32(&g_log.inflight) != 0)
-        ;
+    while (nth_atomic_load_acquire_u32(&g_log.inflight) != 0);
 
     if (g_log.buf_index != 0) {
         log_raw_write(g_log.buf, g_log.buf_index);
@@ -175,8 +174,6 @@ static void log_flush_locked(void) {
 /* ================================================================================ */
 
 static void log_append(NthLogLevel level, const char *msg, nth_usize len) {
-    if (NTH_UNLIKELY(!nth_lifecycle_is_alive(&g_log.life)))
-        return;
     if (NTH_UNLIKELY(level > NTH_LOG_LEVEL_DEBUG))
         level = NTH_LOG_LEVEL_DEBUG;
 
@@ -219,15 +216,15 @@ static void log_append(NthLogLevel level, const char *msg, nth_usize len) {
 }
 
 void nth_log(NthLogLevel level, const char *msg) {
-    if (NTH_UNLIKELY(msg == NULL))
-        return;
+    NTH_DASSERT(NTH_LIKELY(msg != NULL));
+    NTH_DASSERT(NTH_LIKELY(nth_lifecycle_is_alive(&g_narthex_life)));
 
     log_append(level, msg, strlen(msg));
 }
 
 void nth_logn(NthLogLevel level, const char *msg, nth_usize len) {
-    if (NTH_UNLIKELY(msg == NULL))
-        return;
+    NTH_DASSERT(NTH_LIKELY(msg != NULL));
+    NTH_DASSERT(NTH_LIKELY(nth_lifecycle_is_alive(&g_narthex_life)));
 
     log_append(level, msg, len);
 }
@@ -237,8 +234,8 @@ void nth_logf(NthLogLevel level, const char *fmt, ...) {
     va_list ap;
     int n;
 
-    if (NTH_UNLIKELY(fmt == NULL))
-        return;
+    NTH_DASSERT(NTH_LIKELY(fmt != NULL));
+    NTH_DASSERT(NTH_LIKELY(nth_lifecycle_is_alive(&g_narthex_life)));
 
     va_start(ap, fmt);
     n = vsnprintf(tmp, sizeof tmp, fmt, ap);
@@ -255,8 +252,7 @@ void nth_logf(NthLogLevel level, const char *fmt, ...) {
 }
 
 void nth_flush(void) {
-    if (NTH_UNLIKELY(!nth_lifecycle_is_alive(&g_log.life)))
-        return;
+    NTH_DASSERT(NTH_LIKELY(nth_lifecycle_is_alive(&g_narthex_life)));
 
     nth_mutex_lock(&g_log.lock);
     log_flush_locked();
@@ -269,10 +265,6 @@ void nth_flush(void) {
 /* ================================================================================ */
 
 NthResult nth_init_log(const NthLoggerDesc *desc) {
-    NthResult r = nth_lifecycle_begin_init(&g_log.life);
-    if (r != NTH_RESULT_OK)
-        return r;
-
     nth_usize size = LOG_BUFFER_DEFAULT;
     nth_b8 flush_each = NTH_FALSE;
 
@@ -281,16 +273,13 @@ NthResult nth_init_log(const NthLoggerDesc *desc) {
             size = desc->buffer_size;
         flush_each = desc->flush_each;
     }
-    if (size <= LOG_FIXED_SIZE) {
-        nth_lifecycle_fail_init(&g_log.life);
+    if (size <= LOG_FIXED_SIZE)
         return NTH_RESULT_INVALID_ARGUMENT;
-    }
+    
 
     g_log.buf = (char *)malloc(size);
-    if (g_log.buf == NULL) {
-        nth_lifecycle_fail_init(&g_log.life);
+    if (g_log.buf == NULL)
         return NTH_RESULT_OUT_OF_MEMORY;
-    }
 
     g_log.buf_size   = size;
     g_log.buf_index  = 0;
@@ -299,15 +288,11 @@ NthResult nth_init_log(const NthLoggerDesc *desc) {
     g_log.flush_each = flush_each;
 
     nth_mutex_init(&g_log.lock);
-    nth_lifecycle_end_init(&g_log.life);
 
     return NTH_RESULT_OK;
 }
 
 void nth_term_log(void) {
-    if (nth_lifecycle_begin_term(&g_log.life) != NTH_RESULT_OK)
-        return;
-
     nth_mutex_lock(&g_log.lock);
     log_flush_locked();
     nth_mutex_unlock(&g_log.lock);
@@ -317,6 +302,4 @@ void nth_term_log(void) {
     free(g_log.buf);
     g_log.buf = NULL;
     g_log.buf_size = 0;
-
-    nth_lifecycle_end_term(&g_log.life);
 }

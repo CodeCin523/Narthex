@@ -1,8 +1,9 @@
 #include <narthex/nth_uptime.h>
+#include <narthex/inl/lifecycle.h>
 #include <narthex/utils/platform.h>
 #include <narthex/utils/check.h>
 
-#include "lifecycle.h"
+#include "internal.h"
 
 #if NTH_PLATFORM_WINDOWS
 #include <windows.h>
@@ -12,8 +13,6 @@
 
 
 static struct {
-    volatile NthLifecycle life;
-
 #if NTH_PLATFORM_WINDOWS
     LARGE_INTEGER start_time;
     LARGE_INTEGER frequency;
@@ -24,8 +23,9 @@ static struct {
 
 
 NthUptimeNs nth_uptime_now(void) {
+    NTH_ASSERT(NTH_LIKELY(nth_lifecycle_is_alive(&g_narthex_life)));
+
     NthUptimeNs up_time={NTH_U64_MAX};
-    NTH_CHECK(NTH_UNLIKELY(!nth_lifecycle_is_alive(&g_uptime.life)), up_time);
 
 #if NTH_PLATFORM_WINDOWS
     LARGE_INTEGER now;
@@ -42,10 +42,11 @@ NthUptimeNs nth_uptime_now(void) {
     return up_time;
 }
 NthDeltaNs nth_uptime_elapsed(NthUptimeNs since) {
+    NTH_ASSERT(NTH_LIKELY(nth_lifecycle_is_alive(&g_narthex_life)));
+
     NthUptimeNs up_time={NTH_U64_MAX};
     NthDeltaNs dt = {NTH_U64_MAX};
-    NTH_CHECK(NTH_UNLIKELY(!nth_lifecycle_is_alive(&g_uptime.life)), dt);
-
+    
 #if NTH_PLATFORM_WINDOWS
     LARGE_INTEGER now;
     QueryPerformanceCounter(&now);
@@ -68,10 +69,6 @@ NthDeltaNs nth_uptime_elapsed(NthUptimeNs since) {
 /* ================================================================================ */
 
 NthResult nth_init_uptime(void) {
-    NthResult r = nth_lifecycle_begin_init(&g_uptime.life);
-    if(r != NTH_RESULT_OK)
-        return r;
-
 #if NTH_PLATFORM_WINDOWS
     QueryPerformanceFrequency(&g_uptime.frequency);
     QueryPerformanceCounter(&g_uptime.start_time);
@@ -79,19 +76,13 @@ NthResult nth_init_uptime(void) {
     clock_gettime(CLOCK_MONOTONIC, &g_uptime.start_time);
 #endif
 
-    nth_lifecycle_end_init(&g_uptime.life);
     return NTH_RESULT_OK;
 }
 void nth_term_uptime() {
-    if (nth_lifecycle_begin_term(&g_uptime.life) != NTH_RESULT_OK)
-        return;
-
 #if NTH_PLATFORM_WINDOWS
     g_uptime.frequency = 0;
     g_uptime.start_time = 0;
 #else
     g_uptime.start_time = (struct timespec){0};
 #endif
-
-    nth_lifecycle_end_term(&g_uptime.life);
 }

@@ -4,14 +4,13 @@ A C foundation library. It gives infrastructure building blocks to applications,
 engines, and simulations.
 
 > **Status: early development.** Nothing is stable. The API changes without notice.
-> Only the arena allocators (`NthArena`, `NthDynArena`) and the logger are
-> implemented and tested. The `vulkan` module is a stub. Do not depend on this yet.
+>  The `vulkan` module is a stub. Do not depend on this yet.
 
 ## At a glance
 
 - Public prefix `nth_` for functions, `Nth` for types.
 - Public headers are **C99**. The library itself builds as **C17**.
-- Builds a static archive `libnarthex.a`, exported as `narthex::narthex`.
+- Builds a shared library `libnarthex.so`, exported as `narthex::narthex`.
 - Requires CMake 3.23 or later. The library links only libc today.
 
 ## Build
@@ -47,7 +46,7 @@ binary. Prefer these options over passing `-fsanitize=...` in `CMAKE_C_FLAGS`: o
 MSVC, enabling AddressSanitizer means *removing* flags that CMake injects, which
 you cannot do by adding flags.
 
-Consumers linking `libnarthex.a` must use the same sanitizer flags the library was
+Consumers linking `narthex::narthex` must use the same sanitizer flags the library was
 built with, or the link fails on missing sanitizer runtime symbols.
 
 ## Symbol visibility

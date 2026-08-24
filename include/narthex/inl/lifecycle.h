@@ -1,9 +1,13 @@
-#ifndef NTH_SRC_LIFECYCLE_H
-#define NTH_SRC_LIFECYCLE_H
+#ifndef NTH_INL_LIFECYCLE_H
+#define NTH_INL_LIFECYCLE_H
 
 #include <narthex/nth_types.h>
 #include <narthex/nth_result.h>
 #include <narthex/inl/atomic.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 
 typedef nth_u32 NthLifecycle;
@@ -46,4 +50,8 @@ static inline void nth_lifecycle_end_term(volatile NthLifecycle *lc) {
 }
 
 
-#endif /* NTH_SRC_LIFECYCLE_H */
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* NTH_INL_LIFECYCLE_H */

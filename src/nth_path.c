@@ -1,9 +1,10 @@
 #include <narthex/nth_path.h>
 
+#include <narthex/inl/lifecycle.h>
 #include <narthex/utils/platform.h>
 #include <narthex/utils/check.h>
 
-#include "lifecycle.h"
+#include "internal.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -63,8 +64,6 @@
 
 
 static struct {
-    volatile NthLifecycle life;
-
     const char *exe_dir;
     const char *cwd_dir;
     const char *config_dir;
@@ -136,8 +135,8 @@ static NthResult path_grow(NthPath *path, nth_usize needed_len) {
 /* ================================================================================ */
 
 NthResult nth_setup_path(NthPath *path) {
-    NTH_DASSERT(NTH_UNLIKELY(path != NULL));
-    NTH_CHECK(NTH_UNLIKELY(!PATH_ALIVE(path->meta)), NTH_RESULT_ALREADY_INITIALIZED);
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_CHECK(NTH_LIKELY(!PATH_ALIVE(path->meta)), NTH_RESULT_ALREADY_INITIALIZED);
 
     nth_u8 *tmp = malloc(PATH_DEFAULT_CAP);
     if(NTH_UNLIKELY(tmp == NULL))
@@ -155,8 +154,8 @@ NthResult nth_setup_path(NthPath *path) {
     return NTH_RESULT_OK;
 }
 NthResult nth_setup_path_cstr(NthPath *path, const char *str) {
-    NTH_DASSERT(NTH_UNLIKELY(path != NULL));
-    NTH_CHECK(NTH_UNLIKELY(!PATH_ALIVE(path->meta)), NTH_RESULT_ALREADY_INITIALIZED);
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_CHECK(NTH_LIKELY(!PATH_ALIVE(path->meta)), NTH_RESULT_ALREADY_INITIALIZED);
 
     nth_usize len = strlen(str);
     NTH_ASSERT(len < PATH_LEN_MAX);
@@ -179,8 +178,8 @@ NthResult nth_setup_path_cstr(NthPath *path, const char *str) {
     return NTH_RESULT_OK;
 }
 NthResult nth_setup_path_view(NthPath *path, NthPathView view) {
-    NTH_DASSERT(NTH_UNLIKELY(path != NULL));
-    NTH_CHECK(NTH_UNLIKELY(!PATH_ALIVE(path->meta)), NTH_RESULT_ALREADY_INITIALIZED);
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_CHECK(NTH_LIKELY(!PATH_ALIVE(path->meta)), NTH_RESULT_ALREADY_INITIALIZED);
 
     NTH_ASSERT(view.size < PATH_LEN_MAX);
     nth_usize cap = (view.size + 1 > PATH_DEFAULT_CAP) ? (view.size + 1) : PATH_DEFAULT_CAP;
@@ -201,8 +200,8 @@ NthResult nth_setup_path_view(NthPath *path, NthPathView view) {
     return NTH_RESULT_OK;
 }
 void nth_teardown_path(NthPath *path) {
-    NTH_DASSERT(NTH_UNLIKELY(path != NULL));
-    NTH_CHECK(PATH_ALIVE(path->meta), (void)0);
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_CHECK(NTH_LIKELY(PATH_ALIVE(path->meta)), (void)0);
 
     if(PATH_HAS(path->meta, PATH_FLAG_OWNED) && path->ptr != NULL)
         free(path->ptr);
@@ -213,8 +212,9 @@ void nth_teardown_path(NthPath *path) {
 
 
 void nth_path_system_config(NthPath *path) { // XDG_CONFIG_HOME/<app> on Linux, %APPDATA%\<app> on Windows
-    NTH_DASSERT(NTH_UNLIKELY(path != NULL));
-    NTH_CHECK(PATH_ALIVE(path->meta), (void)0);
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_DASSERT(NTH_LIKELY(nth_lifecycle_is_alive(&g_narthex_life)));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(path->meta)));
 
     const char *dir = g_path.config_dir;
     if(NTH_UNLIKELY(dir == NULL)) {
@@ -224,8 +224,9 @@ void nth_path_system_config(NthPath *path) { // XDG_CONFIG_HOME/<app> on Linux, 
     nth_path_set(path, dir);
 }
 void nth_path_system_data(NthPath *path) { // XDG_DATA_HOME/<app> on Linux, %LOCALAPPDATA%\<app> on Windows
-    NTH_DASSERT(NTH_UNLIKELY(path != NULL));
-    NTH_CHECK(PATH_ALIVE(path->meta), (void)0);
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_DASSERT(NTH_LIKELY(nth_lifecycle_is_alive(&g_narthex_life)));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(path->meta)));
 
     const char *dir = g_path.data_dir;
     if(NTH_UNLIKELY(dir == NULL)) {
@@ -235,8 +236,9 @@ void nth_path_system_data(NthPath *path) { // XDG_DATA_HOME/<app> on Linux, %LOC
     nth_path_set(path, dir);
 }
 void nth_path_system_cwd(NthPath *path) { // working directory at init time
-    NTH_DASSERT(NTH_UNLIKELY(path != NULL));
-    NTH_CHECK(PATH_ALIVE(path->meta), (void)0);
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_DASSERT(NTH_LIKELY(nth_lifecycle_is_alive(&g_narthex_life)));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(path->meta)));
 
     const char *cwd = g_path.cwd_dir;
     if(NTH_UNLIKELY(cwd == NULL)) {
@@ -246,8 +248,9 @@ void nth_path_system_cwd(NthPath *path) { // working directory at init time
     nth_path_set(path, cwd);
 }
 void nth_path_system_exe(NthPath *path) { // directory of running executable
-    NTH_DASSERT(NTH_UNLIKELY(path != NULL));
-    NTH_CHECK(PATH_ALIVE(path->meta), (void)0);
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_DASSERT(NTH_LIKELY(nth_lifecycle_is_alive(&g_narthex_life)));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(path->meta)));
 
     const char *dir = g_path.exe_dir;
     if(NTH_UNLIKELY(dir == NULL)) {
@@ -259,14 +262,16 @@ void nth_path_system_exe(NthPath *path) { // directory of running executable
 
 
 void nth_path_set(NthPath *path, const char *str) {
-    NTH_DASSERT(NTH_UNLIKELY(path != NULL));
-    NTH_CHECK(PATH_ALIVE(path->meta), (void)0);
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_DASSERT(NTH_LIKELY(str != NULL));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(path->meta)));
 
     nth_path_setn(path, str, strlen(str));
 }
 void nth_path_setn(NthPath *path, const char *str, nth_usize len) {
-    NTH_DASSERT(NTH_UNLIKELY(path != NULL));
-    NTH_CHECK(PATH_ALIVE(path->meta), (void)0);
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_DASSERT(NTH_LIKELY(str != NULL));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(path->meta)));
     // NTH_CHECK(len != 0, (void)0);
 
     if(NTH_UNLIKELY(path_grow(path, len) != NTH_RESULT_OK))
@@ -279,14 +284,16 @@ void nth_path_setn(NthPath *path, const char *str, nth_usize len) {
 }
 
 void nth_path_append(NthPath *path, const char *str) {
-    NTH_DASSERT(NTH_UNLIKELY(path != NULL));
-    NTH_CHECK(PATH_ALIVE(path->meta), (void)0);
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(path->meta)));
 
     nth_path_appendn(path, str, strlen(str));
 }
 void nth_path_appendn(NthPath *path, const char *str, nth_usize len) {
-    NTH_DASSERT(NTH_UNLIKELY(path != NULL));
-    NTH_CHECK(PATH_ALIVE(path->meta), (void)0);
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_DASSERT(NTH_LIKELY(str != NULL));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(path->meta)));
+    
     NTH_CHECK(len != 0, (void)0);
 
     nth_usize cur = PATH_LEN(path->meta);
@@ -306,8 +313,8 @@ void nth_path_appendn(NthPath *path, const char *str, nth_usize len) {
 }
 
 void nth_path_normalize(NthPath *path) {
-    NTH_DASSERT(NTH_UNLIKELY(path != NULL));
-    NTH_CHECK(PATH_ALIVE(path->meta), (void)0);
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(path->meta)));
 
     if(PATH_HAS(path->meta, PATH_FLAG_NORMALIZED))
         return;
@@ -403,8 +410,8 @@ void nth_path_normalize(NthPath *path) {
     PATH_SET_FLAG(path->meta, PATH_FLAG_NORMALIZED);
 }
 void nth_path_clear(NthPath *path) {
-    NTH_DASSERT(NTH_UNLIKELY(path != NULL));
-    NTH_CHECK(PATH_ALIVE(path->meta), (void)0);
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(path->meta)));
 
     path->ptr[0] = '\0';
     PATH_SET_LEN(path->meta, 0);
@@ -412,10 +419,10 @@ void nth_path_clear(NthPath *path) {
     PATH_CLR_FLAG(path->meta, PATH_FLAG_INVALID);
 }
 void nth_path_copy(NthPath *dst, const NthPath *src) {
-    NTH_DASSERT(NTH_UNLIKELY(dst != NULL));
-    NTH_DASSERT(NTH_UNLIKELY(src != NULL));
-    NTH_CHECK(PATH_ALIVE(dst->meta), (void)0);
-    NTH_CHECK(PATH_ALIVE(src->meta), (void)0);
+    NTH_DASSERT(NTH_LIKELY(dst != NULL));
+    NTH_DASSERT(NTH_LIKELY(src != NULL));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(dst->meta)));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(src->meta)));
 
     nth_usize len = PATH_LEN(src->meta);
 
@@ -437,23 +444,23 @@ void nth_path_copy(NthPath *dst, const NthPath *src) {
 // void nth_path_remove_extension(NthPath *path);
 
 const char *nth_path_data(const NthPath *path) {
-    NTH_DASSERT(NTH_UNLIKELY(path != NULL));
-    NTH_CHECK(PATH_ALIVE(path->meta), NULL);
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(path->meta)));
     return (const char *)path->ptr;
 }
 nth_usize nth_path_length(const NthPath *path) {
-    NTH_DASSERT(NTH_UNLIKELY(path != NULL));
-    NTH_CHECK(PATH_ALIVE(path->meta), 0);
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(path->meta)));
     return PATH_LEN(path->meta);
 }
 nth_b8 nth_path_empty(const NthPath *path) {
-    NTH_DASSERT(NTH_UNLIKELY(path != NULL));
-    NTH_CHECK(PATH_ALIVE(path->meta), 1);
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(path->meta)));
     return PATH_LEN(path->meta) == 0;
 }
 nth_b8 nth_path_is_absolute(const NthPath *path) {
-    NTH_DASSERT(NTH_UNLIKELY(path != NULL));
-    NTH_CHECK(PATH_ALIVE(path->meta), 0);
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(path->meta)));
 
     nth_usize len = PATH_LEN(path->meta);
     if(len == 0)
@@ -472,15 +479,16 @@ nth_b8 nth_path_is_absolute(const NthPath *path) {
 #endif
 }
 nth_b8 nth_path_is_relative(const NthPath *path) {
-    NTH_DASSERT(NTH_UNLIKELY(path != NULL));
-    NTH_CHECK(PATH_ALIVE(path->meta), 0);
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(path->meta)));
     return !nth_path_is_absolute(path);
 }
 
 NthPathView nth_path_filename(const NthPath *path) {
-    NTH_DASSERT(NTH_UNLIKELY(path != NULL));
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(path->meta)));
+
     NthPathView view = {0};
-    NTH_CHECK(PATH_ALIVE(path->meta), view);
 
     nth_usize len = PATH_LEN(path->meta);
     if(len == 0 || PATH_IS_SEP(path->ptr[len - 1]))
@@ -494,9 +502,10 @@ NthPathView nth_path_filename(const NthPath *path) {
     return view;
 }
 NthPathView nth_path_directory(const NthPath *path) {
-    NTH_DASSERT(NTH_UNLIKELY(path != NULL));
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(path->meta)));
+
     NthPathView view = {0};
-    NTH_CHECK(PATH_ALIVE(path->meta), view);
 
     nth_usize len = PATH_LEN(path->meta);
     nth_usize end = len;
@@ -533,6 +542,9 @@ NthPathView nth_path_directory(const NthPath *path) {
     return view;
 }
 NthPathView nth_path_extension(const NthPath *path) {
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(path->meta)));
+
     NthPathView fname = nth_path_filename(path);
     NthPathView view = {0};
     if(fname.base == NULL || fname.size == 0)
@@ -555,6 +567,9 @@ NthPathView nth_path_extension(const NthPath *path) {
     return view;
 }
 NthPathView nth_path_stem(const NthPath *path) {
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(path->meta)));
+
     NthPathView fname = nth_path_filename(path);
     NthPathView ext = nth_path_extension(path);
 
@@ -564,10 +579,10 @@ NthPathView nth_path_stem(const NthPath *path) {
 }
 
 nth_b8 nth_path_equal(const NthPath *a, const NthPath *b) {
-    NTH_DASSERT(NTH_UNLIKELY(a != NULL));
-    NTH_DASSERT(NTH_UNLIKELY(b != NULL));
-    NTH_CHECK(PATH_ALIVE(a->meta), 0);
-    NTH_CHECK(PATH_ALIVE(b->meta), 0);
+    NTH_DASSERT(NTH_LIKELY(a != NULL));
+    NTH_DASSERT(NTH_LIKELY(b != NULL));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(a->meta)));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(b->meta)));
 
     NthPathView bv;
     bv.base = b->ptr;
@@ -575,8 +590,8 @@ nth_b8 nth_path_equal(const NthPath *a, const NthPath *b) {
     return nth_path_equal_view(a, bv);
 }
 nth_b8 nth_path_equal_view(const NthPath *path, NthPathView view) {
-    NTH_DASSERT(NTH_UNLIKELY(path != NULL));
-    NTH_CHECK(PATH_ALIVE(path->meta), 0);
+    NTH_DASSERT(NTH_LIKELY(path != NULL));
+    NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(path->meta)));
 
     NthPathView self;
     self.base = path->ptr;
@@ -605,9 +620,7 @@ nth_b8 nth_path_view_equal_cstr(NthPathView view, const char *str) {
 /* ================================================================================ */
 
 NthResult nth_init_path(const char *app_name) {
-    NthResult r = nth_lifecycle_begin_init(&g_path.life);
-    if(r != NTH_RESULT_OK)
-        return r;
+    NthResult r = NTH_RESULT_OK;
 
     { // CWD
         nth_usize cap = PATH_DEFAULT_CAP;
@@ -823,7 +836,6 @@ NthResult nth_init_path(const char *app_name) {
         g_path.data_dir = base;
     }
 
-    nth_lifecycle_end_init(&g_path.life);
     return NTH_RESULT_OK;
 
 fail:
@@ -844,15 +856,10 @@ fail:
     g_path.config_dir = NULL;
     g_path.data_dir = NULL;
 
-    nth_lifecycle_fail_init(&g_path.life);
     return r;
 }
 
 void nth_term_path(void) {
-    NthResult r = nth_lifecycle_begin_term(&g_path.life);
-    if(r != NTH_RESULT_OK)
-        return;
-
     if(g_path.exe_dir != NULL)
         free((void *)g_path.exe_dir);
 
@@ -869,6 +876,4 @@ void nth_term_path(void) {
     g_path.cwd_dir = NULL;
     g_path.config_dir = NULL;
     g_path.data_dir = NULL;
-
-    nth_lifecycle_end_term(&g_path.life);
 }

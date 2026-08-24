@@ -1,4 +1,5 @@
 #include <narthex/nth_uptime.h>
+#include <narthex/narthex.h>
 #include "nth_test.h"
 
 #include <math.h>
@@ -158,5 +159,11 @@ int main(void) {
         { "uptime/elapsed_never_negative_looking", test_uptime_elapsed_never_negative_looking },
     };
 
-    return NTH_RUN_TESTS(tests);
+    nth_init(NULL);
+
+    int result = NTH_RUN_TESTS(tests);
+
+    nth_term();
+
+    return result;
 }
