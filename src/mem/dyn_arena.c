@@ -35,44 +35,6 @@ static void nth_dyn_poison_back_to(NthDynArena *arena, nth_usize idx, nth_usize 
 #endif
 
 
-NthResult nth_setup_dyn_arena(NthDynArena *arena, NthSpan span) {
-    NTH_DASSERT(NTH_LIKELY(arena != NULL));
-    NTH_DASSERT(NTH_LIKELY(span.base != NULL && span.size != 0));
-
-    NthSpan *tmp = malloc(4 * sizeof(NthSpan));
-    if(NTH_UNLIKELY(tmp == NULL))
-        return NTH_RESULT_OUT_OF_MEMORY;
-
-    arena->spans = tmp;
-    arena->span_count = 1;
-    arena->span_capacity = 4;
-
-    arena->spans[0] = span;
-
-    arena->span_idx = 0;
-    arena->offset = 0;
-
-    nth_poison_dead(span.base, span.size);
-
-    return NTH_RESULT_OK;
-}
-void nth_teardown_dyn_arena(NthDynArena *arena) {
-    NTH_DASSERT(NTH_LIKELY(arena != NULL));
-
-    if(arena->spans != NULL) {
-        for(nth_usize i = 0; i < arena->span_count; i++)
-            nth_poison_disown(arena->spans[i].base, arena->spans[i].size);
-
-        free(arena->spans);
-    }
-
-    arena->spans = NULL;
-    arena->span_count = 0;
-    arena->span_capacity = 0;
-    arena->span_idx = 0;
-    arena->offset = 0;
-}
-
 nth_b8 nth_dyn_arena_grow(NthDynArena *arena, NthSpan span) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));
     NTH_DASSERT(NTH_LIKELY(arena->spans != NULL));
@@ -197,4 +159,77 @@ void nth_dyn_arena_clean(NthDynArena *arena) {
 
     arena->offset = 0;
     arena->span_idx = 0;
+}
+
+
+/* ================================================================================ */
+/*  ALLOCATOR                                                                       */
+/* ================================================================================ */
+
+static void *dyn_arena_alloc_alloc(const void *ctx, nth_usize size, nth_usize align) {
+    return nth_dyn_arena_alloc((NthDynArena *)ctx, size, align);
+}
+static void *dyn_arena_alloc_realloc(const void *ctx, void *ptr, nth_usize size, nth_usize align) {
+    (void)ctx; (void)ptr; (void)size; (void)align;
+    NTH_ASSERT(!"NthDynArena do not support realloc");
+}
+static void dyn_arena_alloc_free(const void *ctx, void *ptr) {
+    (void)ctx; (void)ptr;
+    NTH_ASSERT(!"NthDynArena do not support free");
+}
+static void dyn_arena_alloc_clear(const void *ctx) {
+    nth_dyn_arena_clean((NthDynArena *)ctx);
+}
+
+NthAllocator nth_dyn_arena_as_allocator(NthDynArena *arena) {
+    return (NthAllocator) {
+        .ctx = arena,
+        .alloc = dyn_arena_alloc_alloc,
+        .realloc = dyn_arena_alloc_realloc,
+        .free = dyn_arena_alloc_free,
+        .clear = dyn_arena_alloc_clear
+    };
+}
+
+
+/* ================================================================================ */
+/*  LIFE-CYCLE                                                                      */
+/* ================================================================================ */
+
+NthResult nth_setup_dyn_arena(NthDynArena *arena, NthSpan span) {
+    NTH_DASSERT(NTH_LIKELY(arena != NULL));
+    NTH_DASSERT(NTH_LIKELY(span.base != NULL && span.size != 0));
+
+    NthSpan *tmp = malloc(4 * sizeof(NthSpan));
+    if(NTH_UNLIKELY(tmp == NULL))
+        return NTH_RESULT_OUT_OF_MEMORY;
+
+    arena->spans = tmp;
+    arena->span_count = 1;
+    arena->span_capacity = 4;
+
+    arena->spans[0] = span;
+
+    arena->span_idx = 0;
+    arena->offset = 0;
+
+    nth_poison_dead(span.base, span.size);
+
+    return NTH_RESULT_OK;
+}
+void nth_teardown_dyn_arena(NthDynArena *arena) {
+    NTH_DASSERT(NTH_LIKELY(arena != NULL));
+
+    if(arena->spans != NULL) {
+        for(nth_usize i = 0; i < arena->span_count; i++)
+            nth_poison_disown(arena->spans[i].base, arena->spans[i].size);
+
+        free(arena->spans);
+    }
+
+    arena->spans = NULL;
+    arena->span_count = 0;
+    arena->span_capacity = 0;
+    arena->span_idx = 0;
+    arena->offset = 0;
 }

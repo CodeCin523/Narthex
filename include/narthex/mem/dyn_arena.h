@@ -2,6 +2,7 @@
 #define NTH_MEM_DYN_ARENA_H
 
 #include <narthex/mem/span.h>
+#include <narthex/mem/allocator.h>
 #include <narthex/nth_result.h>
 #include <narthex/utils/api.h>
 
@@ -33,6 +34,8 @@ NTH_API void *nth_dyn_arena_alloc(NthDynArena *arena, nth_usize size, nth_usize 
 NTH_API NthDynArenaMark nth_dyn_arena_mark(NthDynArena *arena);
 NTH_API nth_b8 nth_dyn_arena_restore(NthDynArena *arena, NthDynArenaMark mark);
 NTH_API void nth_dyn_arena_clean(NthDynArena *arena);
+
+NTH_API NthAllocator nth_dyn_arena_as_allocator(NthDynArena *arena);
 
 
 #ifdef __cplusplus

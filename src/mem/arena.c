@@ -6,25 +6,6 @@
 #include "poison.h"
 
 
-NthResult nth_setup_arena(NthArena *arena, NthSpan span) {
-    NTH_DASSERT(NTH_LIKELY(arena != NULL));
-    NTH_DASSERT(NTH_LIKELY(span.base != NULL && span.size != 0));
-
-    arena->span = span;
-    arena->offset = 0;
-
-    nth_poison_dead(span.base, span.size);
-    return NTH_RESULT_OK;
-}
-void nth_teardown_arena(NthArena *arena) {
-    NTH_DASSERT(NTH_LIKELY(arena != NULL));
-
-    nth_poison_disown(arena->span.base, arena->span.size);
-
-    arena->span = (NthSpan){0};
-    arena->offset = 0;
-}
-
 void *nth_arena_alloc(NthArena *arena, nth_usize size, nth_usize align) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));
     NTH_DASSERT(NTH_LIKELY(arena->span.base != NULL));
@@ -68,5 +49,59 @@ void nth_arena_clean(NthArena *arena) {
 
     nth_poison_dead(arena->span.base, arena->offset);
 
+    arena->offset = 0;
+}
+
+
+/* ================================================================================ */
+/*  ALLOCATOR                                                                       */
+/* ================================================================================ */
+
+static void *arena_alloc_alloc(const void *ctx, nth_usize size, nth_usize align) {
+    return nth_arena_alloc((NthArena *)ctx, size, align);
+}
+static void *arena_alloc_realloc(const void *ctx, void *ptr, nth_usize size, nth_usize align) {
+    (void)ctx; (void)ptr; (void)size; (void)align;
+    NTH_ASSERT(!"NthArena do not support realloc");
+}
+static void arena_alloc_free(const void *ctx, void *ptr) {
+    (void)ctx; (void)ptr;
+    NTH_ASSERT(!"NthArena do not support free");
+}
+static void arena_alloc_clear(const void *ctx) {
+    nth_arena_clean((NthArena *)ctx);
+}
+
+NthAllocator nth_arena_as_allocator(NthArena *arena) {
+    return (NthAllocator) {
+        .ctx = arena,
+        .alloc = arena_alloc_alloc,
+        .realloc = arena_alloc_realloc,
+        .free = arena_alloc_free,
+        .clear = arena_alloc_clear
+    };
+}
+
+
+/* ================================================================================ */
+/*  LIFE-CYCLE                                                                      */
+/* ================================================================================ */
+
+NthResult nth_setup_arena(NthArena *arena, NthSpan span) {
+    NTH_DASSERT(NTH_LIKELY(arena != NULL));
+    NTH_DASSERT(NTH_LIKELY(span.base != NULL && span.size != 0));
+
+    arena->span = span;
+    arena->offset = 0;
+
+    nth_poison_dead(span.base, span.size);
+    return NTH_RESULT_OK;
+}
+void nth_teardown_arena(NthArena *arena) {
+    NTH_DASSERT(NTH_LIKELY(arena != NULL));
+
+    nth_poison_disown(arena->span.base, arena->span.size);
+
+    arena->span = (NthSpan){0};
     arena->offset = 0;
 }
