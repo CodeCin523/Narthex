@@ -9,8 +9,24 @@ extern "C" {
 #endif
 
 
+#if NTH_DEBUG
+#include <stdio.h>
+
+static inline NTH_NORETURN void nth_assert_fail(const char *expr, const char *file, int line, const char *func) {
+    fprintf(stderr, "%s:%d: %s: assertion failed: %s\n", file, line, func, expr);
+    fflush(stderr);
+
+    NTH_TRAP();
+}
+#endif
+
+
 /* Always fatal in debug and release. Use this for internal invariants that must not fail. */
-#define NTH_ASSERT(expr) do { if (!(expr)) NTH_TRAP(); } while (0)
+#if NTH_DEBUG
+    #define NTH_ASSERT(expr) do { if (!(expr)) nth_assert_fail(#expr, __FILE__, __LINE__, __func__); } while (0)
+#else
+    #define NTH_ASSERT(expr) do { if (!(expr)) NTH_TRAP(); } while (0)
+#endif
 
 /* Returns ret if the expression is false. Use this for runtime failures that the caller must handle. */
 #define NTH_CHECK(expr, ret) do { if (!(expr)) return (ret); } while (0)
@@ -31,7 +47,7 @@ extern "C" {
 
 /* In debug mode, traps. In release mode, tells the optimizer that this path does not execute. */
 #if NTH_DEBUG
-    #define NTH_UNREACHABLE() NTH_TRAP()
+    #define NTH_UNREACHABLE() nth_assert_fail("unreachable", __FILE__, __LINE__, __func__)
 #else
     #define NTH_UNREACHABLE() NTH_ASSUME_UNREACHABLE()
 #endif

@@ -35,13 +35,13 @@ static void nth_dyn_poison_back_to(NthDynArena *arena, nth_usize idx, nth_usize 
 #endif
 
 
-nth_b8 nth_setup_dyn_arena(NthDynArena *arena, NthSpan span) {
+NthResult nth_setup_dyn_arena(NthDynArena *arena, NthSpan span) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));
     NTH_DASSERT(NTH_LIKELY(span.base != NULL && span.size != 0));
 
     NthSpan *tmp = malloc(4 * sizeof(NthSpan));
     if(NTH_UNLIKELY(tmp == NULL))
-        return NTH_FALSE;
+        return NTH_RESULT_OUT_OF_MEMORY;
 
     arena->spans = tmp;
     arena->span_count = 1;
@@ -54,7 +54,7 @@ nth_b8 nth_setup_dyn_arena(NthDynArena *arena, NthSpan span) {
 
     nth_poison_dead(span.base, span.size);
 
-    return NTH_TRUE;
+    return NTH_RESULT_OK;
 }
 void nth_teardown_dyn_arena(NthDynArena *arena) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));

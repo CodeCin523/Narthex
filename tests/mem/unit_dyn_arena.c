@@ -27,7 +27,7 @@ static nth_b8 holds(NthDynArena *a, const nth_u8 *base) {
 static nth_b8 test_alloc_basic(void) {
     NthDynArena a;
     NthSpan s = chunk(0, 256, 64);
-    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, s));
+    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, s) == NTH_RESULT_OK);
 
     void *p = nth_dyn_arena_alloc(&a, 16, 1);
     NTH_TEST_ASSERT(p == s.base);
@@ -42,7 +42,7 @@ static nth_b8 test_spill_to_next_span(void) {
     NthSpan s0 = chunk(0,    64, 64);
     NthSpan s1 = chunk(4096, 64, 64);
 
-    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, s0));
+    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, s0)== NTH_RESULT_OK);
     NTH_TEST_ASSERT(nth_dyn_arena_grow(&a, s1));
 
     NTH_TEST_ASSERT(nth_dyn_arena_alloc(&a, 64, 1) == s0.base);
@@ -62,7 +62,7 @@ static nth_b8 test_search_skips_small_span(void) {
     NthSpan s1 = chunk(2048,  16, 64);
     NthSpan s2 = chunk(4096, 256, 64);
 
-    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, s0));
+    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, s0) == NTH_RESULT_OK);
     NTH_TEST_ASSERT(nth_dyn_arena_grow(&a, s1));
     NTH_TEST_ASSERT(nth_dyn_arena_grow(&a, s2));
 
@@ -84,7 +84,7 @@ static nth_b8 test_search_skips_small_span(void) {
 
 static nth_b8 test_grow_past_initial_capacity(void) {
     NthDynArena a;
-    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, chunk(0, 32, 32)));
+    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, chunk(0, 32, 32)) == NTH_RESULT_OK);
 
     for (nth_usize i = 1; i < 12; i++)
         NTH_TEST_ASSERT(nth_dyn_arena_grow(&a, chunk(i * 512, 32, 32)));
@@ -104,7 +104,7 @@ static nth_b8 test_shrink_refuses_live_span(void) {
     NthSpan s0 = chunk(0,    64, 64);
     NthSpan s1 = chunk(2048, 64, 64);
 
-    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, s0));
+    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, s0)== NTH_RESULT_OK);
     NTH_TEST_ASSERT(nth_dyn_arena_grow(&a, s1));
 
     NTH_TEST_ASSERT(nth_dyn_arena_alloc(&a, 64, 1) != NULL);
@@ -120,7 +120,7 @@ static nth_b8 test_shrink_refuses_live_span(void) {
 
 static nth_b8 test_shrink_full_drain(void) {
     NthDynArena a;
-    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, chunk(0, 64, 64)));
+    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, chunk(0, 64, 64))== NTH_RESULT_OK);
     NTH_TEST_ASSERT(nth_dyn_arena_grow(&a, chunk(2048, 64, 64)));
     NTH_TEST_ASSERT(nth_dyn_arena_grow(&a, chunk(4096, 64, 64)));
 
@@ -147,7 +147,7 @@ static nth_b8 test_shrink_returns_last_span(void) {
     NthSpan s0 = chunk(0,    64, 64);
     NthSpan s1 = chunk(2048, 32, 64);
 
-    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, s0));
+    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, s0)== NTH_RESULT_OK);
     NTH_TEST_ASSERT(nth_dyn_arena_grow(&a, s1));
 
     NthSpan got = nth_dyn_arena_shrink(&a);
@@ -165,7 +165,7 @@ static nth_b8 test_alignment_all(void) {
 
         for (nth_usize skew = 0; skew < 8; skew++) {
             NthDynArena a;
-            NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, chunk(0, 4096, 4096)));
+            NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, chunk(0, 4096, 4096))== NTH_RESULT_OK);
 
             if (skew != 0)
                 NTH_TEST_ASSERT(nth_dyn_arena_alloc(&a, skew, 1) != NULL);
@@ -186,7 +186,7 @@ static nth_b8 test_overflow_size_max(void) {
     for (nth_usize i = 0; i < 4; i++) {
         for (nth_usize k = 0; k < 16; k++) {
             NthDynArena a;
-            NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, chunk(0, 64, 4096)));
+            NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, chunk(0, 64, 4096))== NTH_RESULT_OK);
             NTH_TEST_ASSERT(nth_dyn_arena_grow(&a, chunk(4096, 128, 64)));
 
             NTH_TEST_ASSERT(nth_dyn_arena_alloc(&a, NTH_USIZE_MAX - k, aligns[i]) == NULL);
@@ -204,7 +204,7 @@ static nth_b8 test_exact_fill_across_spans(void) {
     NthSpan s0 = chunk(0,    64, 64);
     NthSpan s1 = chunk(2048, 64, 64);
 
-    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, s0));
+    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, s0)== NTH_RESULT_OK);
     NTH_TEST_ASSERT(nth_dyn_arena_grow(&a, s1));
 
     NTH_TEST_ASSERT(nth_dyn_arena_alloc(&a, 64, 1) == s0.base);
@@ -220,7 +220,7 @@ static nth_b8 test_mark_restore_across_spans(void) {
     NthSpan s0 = chunk(0,    64, 64);
     NthSpan s1 = chunk(2048, 64, 64);
 
-    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, s0));
+    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, s0)== NTH_RESULT_OK);
     NTH_TEST_ASSERT(nth_dyn_arena_grow(&a, s1));
 
     NTH_TEST_ASSERT(nth_dyn_arena_alloc(&a, 64, 1) != NULL);
@@ -241,7 +241,7 @@ static nth_b8 test_mark_restore_across_spans(void) {
 
 static nth_b8 test_restore_forward_rejected(void) {
     NthDynArena a;
-    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, chunk(0, 64, 64)));
+    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, chunk(0, 64, 64))== NTH_RESULT_OK);
     NTH_TEST_ASSERT(nth_dyn_arena_grow(&a, chunk(2048, 64, 64)));
 
     NTH_TEST_ASSERT(nth_dyn_arena_alloc(&a, 32, 1) != NULL);
@@ -265,7 +265,7 @@ static nth_b8 test_restore_forward_rejected(void) {
 
 static nth_b8 test_restore_rejects_out_of_range(void) {
     NthDynArena a;
-    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, chunk(0, 64, 64)));
+    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, chunk(0, 64, 64))== NTH_RESULT_OK);
     NTH_TEST_ASSERT(nth_dyn_arena_grow(&a, chunk(2048, 64, 64)));
     NTH_TEST_ASSERT(nth_dyn_arena_alloc(&a, 32, 1) != NULL);
 
@@ -290,7 +290,7 @@ static nth_b8 test_restore_rejects_out_of_range(void) {
 
 static nth_b8 test_mark_packs_idx_and_offset(void) {
     NthDynArena a;
-    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, chunk(0, 64, 64)));
+    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, chunk(0, 64, 64))== NTH_RESULT_OK);
     NTH_TEST_ASSERT(nth_dyn_arena_grow(&a, chunk(2048, 64, 64)));
 
     NthDynArenaMark m0 = nth_dyn_arena_mark(&a);
@@ -310,7 +310,7 @@ static nth_b8 test_mark_packs_idx_and_offset(void) {
 static nth_b8 test_clean_and_teardown(void) {
     NthDynArena a;
     NthSpan s0 = chunk(0, 64, 64);
-    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, s0));
+    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, s0)== NTH_RESULT_OK);
     NTH_TEST_ASSERT(nth_dyn_arena_grow(&a, chunk(2048, 64, 64)));
 
     NTH_TEST_ASSERT(nth_dyn_arena_alloc(&a, 64, 1) != NULL);
@@ -346,7 +346,7 @@ static nth_b8 in_any_span(NthDynArena *a, const nth_u8 *p, nth_usize n) {
 
 static nth_b8 test_stress_model(void) {
     NthDynArena a;
-    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, chunk(0, 96, 64)));
+    NTH_TEST_ASSERT(nth_setup_dyn_arena(&a, chunk(0, 96, 64))== NTH_RESULT_OK);
     NTH_TEST_ASSERT(nth_dyn_arena_grow(&a, chunk(2048,  48, 64)));
     NTH_TEST_ASSERT(nth_dyn_arena_grow(&a, chunk(4096, 128, 64)));
     NTH_TEST_ASSERT(nth_dyn_arena_grow(&a, chunk(8192,  64, 64)));

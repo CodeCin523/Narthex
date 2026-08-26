@@ -61,6 +61,15 @@ extern "C" {
     #define NTH_NOINLINE
 #endif
 
+/* Tells the compiler the function never returns. */
+#if NTH_COMPILER_MSVC
+#define NTH_NORETURN __declspec(noreturn)
+#elif NTH_COMPILER_CLANG || NTH_COMPILER_GCC
+#define NTH_NORETURN __attribute__((noreturn))
+#else
+#define NTH_NORETURN
+#endif
+
 /* Gives the compiler a branch prediction hint. */
 #if NTH_COMPILER_CLANG || NTH_COMPILER_GCC
     #define NTH_LIKELY(expr)   __builtin_expect(!!(expr), 1)

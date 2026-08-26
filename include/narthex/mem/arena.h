@@ -2,6 +2,7 @@
 #define NTH_MEM_ARENA_H
 
 #include <narthex/mem/span.h>
+#include <narthex/nth_result.h>
 #include <narthex/utils/api.h>
 
 #ifdef __cplusplus
@@ -19,7 +20,7 @@ typedef struct NthArenaMark {
 } NthArenaMark;
 
 
-NTH_API void nth_setup_arena(NthArena *arena, NthSpan span);
+NTH_API NthResult nth_setup_arena(NthArena *arena, NthSpan span);
 NTH_API void nth_teardown_arena(NthArena *arena);
 
 NTH_API void *nth_arena_alloc(NthArena *arena, nth_usize size, nth_usize align);

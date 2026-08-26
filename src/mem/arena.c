@@ -6,7 +6,7 @@
 #include "poison.h"
 
 
-void nth_setup_arena(NthArena *arena, NthSpan span) {
+NthResult nth_setup_arena(NthArena *arena, NthSpan span) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));
     NTH_DASSERT(NTH_LIKELY(span.base != NULL && span.size != 0));
 
@@ -14,6 +14,7 @@ void nth_setup_arena(NthArena *arena, NthSpan span) {
     arena->offset = 0;
 
     nth_poison_dead(span.base, span.size);
+    return NTH_RESULT_OK;
 }
 void nth_teardown_arena(NthArena *arena) {
     NTH_DASSERT(NTH_LIKELY(arena != NULL));
