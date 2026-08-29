@@ -4,7 +4,8 @@ add_library(narthex ${NTH_LIB_KIND}
     nth_path.c
     nth_uptime.c
     mem/arena.c
-    mem/dyn_arena.c)
+    mem/dyn_arena.c
+    mem/free_list.c)
 
 add_library(narthex::narthex ALIAS narthex)
 

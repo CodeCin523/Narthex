@@ -60,24 +60,27 @@ void nth_arena_clean(NthArena *arena) {
 static void *arena_alloc_alloc(const void *ctx, nth_usize size, nth_usize align) {
     return nth_arena_alloc((NthArena *)ctx, size, align);
 }
-static void *arena_alloc_realloc(const void *ctx, void *ptr, nth_usize size, nth_usize align) {
-    (void)ctx; (void)ptr; (void)size; (void)align;
-    NTH_ASSERT(!"NthArena do not support realloc");
-}
 static void arena_alloc_free(const void *ctx, void *ptr) {
     (void)ctx; (void)ptr;
     NTH_ASSERT(!"NthArena do not support free");
+}
+static void *arena_alloc_realloc(const void *ctx, void *ptr, nth_usize size, nth_usize align) {
+    (void)ctx; (void)ptr; (void)size; (void)align;
+    NTH_ASSERT(!"NthArena do not support realloc");
 }
 static void arena_alloc_clear(const void *ctx) {
     nth_arena_clean((NthArena *)ctx);
 }
 
 NthAllocator nth_arena_as_allocator(NthArena *arena) {
+    NTH_DASSERT(NTH_LIKELY(arena != NULL));
+    NTH_DASSERT(NTH_LIKELY(arena->span.base != NULL));
+    
     return (NthAllocator) {
         .ctx = arena,
         .alloc = arena_alloc_alloc,
-        .realloc = arena_alloc_realloc,
         .free = arena_alloc_free,
+        .realloc = arena_alloc_realloc,
         .clear = arena_alloc_clear
     };
 }

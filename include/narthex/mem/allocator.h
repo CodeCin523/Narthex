@@ -12,8 +12,8 @@ typedef struct NthAllocator {
     const void *ctx;
 
     void *(*alloc)(const void *ctx, nth_usize size, nth_usize align);
-    void *(*realloc)(const void *ctx, void *ptr, nth_usize size, nth_usize align);
     void  (*free)(const void *ctx, void *ptr);
+    void *(*realloc)(const void *ctx, void *ptr, nth_usize size, nth_usize align);
     void (*clear)(const void *ctx);
 } NthAllocator;
 
@@ -21,11 +21,11 @@ typedef struct NthAllocator {
 static inline void *nth_alloc(NthAllocator *a, nth_usize size, nth_usize align) {
     return a->alloc(a->ctx, size, align);
 }
-static inline void *nth_realloc(NthAllocator *a, void *ptr, nth_usize new_size, nth_usize align) {
-    return a->realloc(a->ctx, ptr, new_size, align);
-}
 static inline void nth_free(NthAllocator *a, void *ptr) {
     a->free(a->ctx, ptr);
+}
+static inline void *nth_realloc(NthAllocator *a, void *ptr, nth_usize new_size, nth_usize align) {
+    return a->realloc(a->ctx, ptr, new_size, align);
 }
 static inline void nth_clear(NthAllocator *a) {
     a->clear(a->ctx);
