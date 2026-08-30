@@ -11,15 +11,28 @@
 
 typedef struct NTH_ALIGNAS(alignof(max_align_t)) NthFreeListMeta {
     struct NthFreeListMeta *next;
-    nth_usize csize; // total chunks occupied by the block, inlcuding metadata
-    nth_usize meta1; // magic number && alignment offset (later maybe)
-    nth_usize span_idx;
+    nth_usize key; // size && span_idx
 } NthFreeListMeta;
 
-_Static_assert(sizeof(NthFreeListMeta) == 32, "Meta not correctly alligned");
+_Static_assert(sizeof(NthFreeListMeta) == 16, "Meta not correctly alligned");
 
-#define SIZEUP_TO_CSIZE(size) (((size) + 31) >> 5)
-#define SIZEDOWN_TO_CSIZE(size) ((size) >> 5)
+
+#define SIZEUP_TO_CSIZE(size) ((nth_usize)(((size) + 15) >> 4))
+#define SIZEDOWN_TO_CSIZE(size) ((nth_usize)((size) >> 4))
+
+#define FLIST_CSIZE_SHIFT 0
+#define FLIST_SPAN_IDX_SHIFT 48
+#define FLIST_CSIZE_MASK ((nth_usize)0xFFFFFFFFFFFF)
+#define FLIST_SPAN_IDX_MASK ((nth_usize)0xFFFF)
+
+#define FLIST_CSIZE_MAX    ((nth_usize)FLIST_CSIZE_MASK)
+#define FLIST_SPAN_IDX_MAX ((nth_usize)FLIST_SPAN_IDX_MASK)
+
+
+#define FLIST_CSIZE(k)    ((nth_usize)(((k) >> FLIST_CSIZE_SHIFT) & FLIST_CSIZE_MASK))
+#define FLIST_SPAN_IDX(k) ((nth_usize)(((k) >> FLIST_SPAN_IDX_SHIFT) & FLIST_SPAN_IDX_MASK))
+#define FLIST_SET_CSIZE(k, v)    ((k) = ((k) & ~(FLIST_CSIZE_MASK << FLIST_CSIZE_SHIFT)) | (((nth_usize)(v) & FLIST_CSIZE_MASK) << FLIST_CSIZE_SHIFT))
+#define FLIST_SET_SPAN_IDX(k, v) ((k) = ((k) & ~(FLIST_SPAN_IDX_MASK << FLIST_SPAN_IDX_SHIFT)) | (((nth_usize)(v) & FLIST_SPAN_IDX_MASK) << FLIST_SPAN_IDX_SHIFT))
 
 
 static inline void nth_free_list_add_free(NthFreeList *list, NthFreeListMeta *meta) {
@@ -42,44 +55,50 @@ static inline void nth_free_list_add_free(NthFreeList *list, NthFreeListMeta *me
     }
 
     // Coalesce with the following block if contiguous
-    if (cur != NULL && meta->span_idx == cur->span_idx &&
-        (NthFreeListMeta *)((char *)meta + meta->csize * sizeof(NthFreeListMeta)) == cur) {
-        meta->csize += cur->csize;
+    if (cur != NULL && FLIST_SPAN_IDX(meta->key) == FLIST_SPAN_IDX(cur->key) &&
+        (NthFreeListMeta *)((char *)meta + FLIST_CSIZE(meta->key) * sizeof(NthFreeListMeta)) == cur) {
+        FLIST_SET_CSIZE(meta->key, FLIST_CSIZE(meta->key) + FLIST_CSIZE(cur->key));
         meta->next = cur->next;
     }
 
     // Coalesce with the preceding block if contiguous
-    if (prev != NULL && meta->span_idx == prev->span_idx &&
-        (NthFreeListMeta *)((char *)prev + prev->csize * sizeof(NthFreeListMeta)) == meta) {
-        prev->csize += meta->csize;
+    if (prev != NULL && FLIST_SPAN_IDX(meta->key) == FLIST_SPAN_IDX(prev->key) &&
+        (NthFreeListMeta *)((char *)prev + FLIST_CSIZE(prev->key) * sizeof(NthFreeListMeta)) == meta) {
+        FLIST_SET_CSIZE(prev->key, FLIST_CSIZE(meta->key) + FLIST_CSIZE(prev->key));
         prev->next = meta->next;
     }
 }
 static inline NthFreeListMeta *free_list_carve_span(NthSpan span, nth_usize span_idx) {
     nth_uptr pad = nth_align_pad((nth_uptr)span.base, alignof(NthFreeListMeta));
-    nth_usize avail = span.size - pad;
 
+    NTH_DASSERT(NTH_LIKELY(pad < span.size));
+    nth_usize avail = span.size - pad;
     NTH_DASSERT(NTH_LIKELY(avail >= sizeof(NthFreeListMeta)));
 
     NthFreeListMeta *meta = (NthFreeListMeta *)(span.base + pad);
 
     meta->next = NULL;
-    meta->csize = SIZEDOWN_TO_CSIZE(avail);
-    meta->span_idx = span_idx;
+    FLIST_SET_CSIZE(meta->key, SIZEDOWN_TO_CSIZE(avail));
+    FLIST_SET_SPAN_IDX(meta->key, span_idx);
 
-    nth_usize data_size = (meta->csize - 1) * sizeof(NthFreeListMeta);
+    nth_usize data_size = (FLIST_CSIZE(meta->key)-1) * sizeof(NthFreeListMeta);
     nth_poison_dead(meta + 1, data_size);
 
     return meta;
 }
 
 
+/* ================================================================================ */
+/*  IMPLEMENTATION                                                                  */
+/* ================================================================================ */
+
 nth_b8 nth_free_list_grow(NthFreeList *list, NthSpan span) {
     NTH_DASSERT(NTH_LIKELY(list != NULL));
     NTH_DASSERT(NTH_LIKELY(list->spans != NULL));
     NTH_DASSERT(NTH_LIKELY(span.base != NULL && span.size != 0));
+    NTH_DASSERT(NTH_LIKELY(SIZEUP_TO_CSIZE(span.size) < FLIST_CSIZE_MAX));
 
-    if(NTH_UNLIKELY(list->span_count + 1 >= list->span_capacity)) {
+    if(NTH_UNLIKELY(list->span_count >= list->span_capacity)) {
         nth_usize ncapacity = list->span_capacity * 2;
 
         NthSpan *tmp = realloc(list->spans, ncapacity * sizeof(NthSpan));
@@ -119,7 +138,7 @@ NthSpan nth_free_list_shrink(NthFreeList *list) {
         nth_uptr addr = (nth_uptr)curr;
         if (addr >= span_start && addr < span_end)
             return (NthSpan){0};
-        if(curr->span_idx == last)
+        if(FLIST_SPAN_IDX(curr->key) == last)
             return (NthSpan){0};
 
         curr = curr->next;
@@ -153,13 +172,14 @@ void *nth_free_list_alloc(NthFreeList *list, nth_usize size) {
     NTH_DASSERT(NTH_LIKELY(size > 0));
 
     const nth_usize csize = SIZEUP_TO_CSIZE(size) + 1;
+    NTH_DASSERT(NTH_LIKELY(csize < FLIST_CSIZE_MAX));
 
     // Get possible address
     NthFreeListMeta **last_ptr = (NthFreeListMeta **)&list->p_free;
     NthFreeListMeta *last = (NthFreeListMeta *)list->p_free;
     
     while(last != NULL) {
-        if(last->csize >= csize)
+        if(FLIST_CSIZE(last->key) >= csize)
             break;
 
         last_ptr = &last->next;
@@ -171,7 +191,7 @@ void *nth_free_list_alloc(NthFreeList *list, nth_usize size) {
     // Subdivide if possible
     nth_usize alloc_csize;
 
-    if(last->csize > csize+1) {
+    if(FLIST_CSIZE(last->key) > csize+1) {
         NthFreeListMeta *next = last + csize;
 
         nth_poison_live(next, sizeof(NthFreeListMeta));
@@ -179,19 +199,18 @@ void *nth_free_list_alloc(NthFreeList *list, nth_usize size) {
         *last_ptr = next;
 
         next->next = last->next;
-        next->csize = last->csize - csize;
-        next->span_idx = last->span_idx;
-        fflush(stdout);
+        FLIST_SET_CSIZE(next->key, FLIST_CSIZE(last->key) - csize);
+        FLIST_SET_SPAN_IDX(next->key, FLIST_SPAN_IDX(last->key));
 
         alloc_csize = csize;
     } else {
         *last_ptr = last->next;
 
-        alloc_csize = last->csize;
+        alloc_csize = FLIST_CSIZE(last->key);
     }
 
     // Last step
-    last->csize = alloc_csize;
+    FLIST_SET_CSIZE(last->key, alloc_csize);
     last->next = list->p_used;
     list->p_used = last;
 
@@ -223,7 +242,7 @@ void nth_free_list_free(NthFreeList *list, void *addr) {
     // It is valid
     *last_ptr = head->next;
 
-    nth_poison_dead(addr, (head->csize-1) * sizeof(NthFreeListMeta));
+    nth_poison_dead(addr, (FLIST_CSIZE(head->key)-1) * sizeof(NthFreeListMeta));
 
     // Place in free list
     nth_free_list_add_free(list, head);
@@ -265,7 +284,7 @@ static void *free_list_alloc_realloc(const void *ctx, void *ptr, nth_usize size,
     }
 
     NthFreeListMeta *head = (NthFreeListMeta *)ptr - 1;
-    nth_usize old_size = (head->csize-1) * sizeof(NthFreeListMeta);
+    nth_usize old_size = (FLIST_CSIZE(head->key)-1) * sizeof(NthFreeListMeta);
 
     void *new_ptr = free_list_alloc_alloc(ctx, size, align);
     if (NTH_UNLIKELY(new_ptr == NULL))

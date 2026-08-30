@@ -144,12 +144,12 @@ static nth_b8 test_alloc_granularity(void) {
     NTH_TEST_ASSERT(p2 != NULL);
 
     /*
-     * 1 byte  -> 1 data chunk + 1 meta chunk = 64 bytes.
-     * 32 bytes -> 1 data chunk + 1 meta chunk = 64 bytes.
-     * 33 bytes -> 2 data chunks + 1 meta chunk = 96 bytes.
+     * 1 byte  -> 16 bytes data + 16 bytes meta = 32 bytes.
+     * 32 bytes -> 32 bytes data + 16 bytes meta = 48 bytes.
+     * 33 bytes -> 48 bytes data + 16 bytes meta = 64 bytes.
      */
-    NTH_TEST_ASSERT((nth_u8 *)p1 - (nth_u8 *)p0 == 64);
-    NTH_TEST_ASSERT((nth_u8 *)p2 - (nth_u8 *)p1 == 64);
+    NTH_TEST_ASSERT((nth_u8 *)p1 - (nth_u8 *)p0 == 32);
+    NTH_TEST_ASSERT((nth_u8 *)p2 - (nth_u8 *)p1 == 48);
 
     nth_free_list_free(&list, p0);
     nth_free_list_free(&list, p1);

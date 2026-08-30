@@ -131,7 +131,7 @@ static NthResult path_grow(NthPath *path, nth_usize needed_len) {
 
 
 /* ================================================================================ */
-/*  LOG IMPLEMENTATION                                                              */
+/*  IMPLEMENTATION                                                                  */
 /* ================================================================================ */
 
 NthResult nth_setup_path(NthPath *path) {

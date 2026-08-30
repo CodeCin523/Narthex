@@ -170,7 +170,7 @@ static void log_flush_locked(void) {
 
 
 /* ================================================================================ */
-/*  LOG IMPLEMENTATION                                                              */
+/*  IMPLEMENTATION                                                                  */
 /* ================================================================================ */
 
 static void log_append(NthLogLevel level, const char *msg, nth_usize len) {

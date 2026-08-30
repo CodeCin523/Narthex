@@ -40,7 +40,7 @@ nth_b8 nth_dyn_arena_grow(NthDynArena *arena, NthSpan span) {
     NTH_DASSERT(NTH_LIKELY(arena->spans != NULL));
     NTH_DASSERT(NTH_LIKELY(span.base != NULL && span.size != 0));
 
-    if(NTH_UNLIKELY(arena->span_count + 1 >= arena->span_capacity)) {
+    if(NTH_UNLIKELY(arena->span_count >= arena->span_capacity)) {
         nth_usize ncapacity = arena->span_capacity * 2;
 
         NthSpan *tmp = realloc(arena->spans, ncapacity * sizeof(NthSpan));
