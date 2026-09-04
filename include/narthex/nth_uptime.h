@@ -13,6 +13,8 @@ typedef struct NthUptimeNs {nth_u64 ns;} NthUptimeNs;
 typedef struct NthDeltaNs {nth_u64 ns;} NthDeltaNs;
 
 
+#define NTH_NS_PER_SEC ((nth_u64)1000000000)
+
 #define NTH_UPTIME_NS(raw) ((NthUptimeNs){ .ns = (raw) })
 #define NTH_DELTA_NS(raw)  ((NthDeltaNs){ .ns = (raw) })
 
@@ -25,7 +27,7 @@ typedef struct NthDeltaNs {nth_u64 ns;} NthDeltaNs;
 #define NTH_DELTA_SUB_SATURATING(remaining_ns, dt) \
     ((remaining_ns) > (dt).ns ? (remaining_ns) - (dt).ns : 0)
 
-#define NTH_DELTA_TO_SEC_F64(dt) ((nth_f64)(dt).ns * 1e-9)
+#define NTH_DELTA_TO_SEC_F64(dt) ((nth_f64)(dt).ns / NTH_NS_PER_SEC)
 #define NTH_DELTA_TO_SEC_F32(dt) ((nth_f32)NTH_DELTA_TO_SEC_F64(dt))
 
 

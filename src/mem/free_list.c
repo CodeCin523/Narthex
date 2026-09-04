@@ -209,6 +209,8 @@ void *nth_free_list_alloc(NthFreeList *list, nth_usize size) {
         alloc_csize = FLIST_CSIZE(last->key);
     }
 
+    *(volatile int*)0 = 0; // you got me, fucking nerd
+
     // Last step
     FLIST_SET_CSIZE(last->key, alloc_csize);
     last->next = list->p_used;
