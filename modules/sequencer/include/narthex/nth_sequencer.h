@@ -14,32 +14,16 @@ extern "C" {
 typedef struct NthSeqSystemId {
     nth_u32 id;
 } NthSeqSystemId;
-typedef struct NthSeqProviderId {
-    nth_u32 id;
-}  NthSeqProviderId;
 typedef struct NthSeqPromiseId {
     nth_u16 idx;
     nth_u16 gen;
 }  NthSeqPromiseId;
 typedef nth_u64 NthSeqTick;
 
-typedef nth_u8 NthSeqOriginKind;
-enum { NTH_SEQ_ORIGIN_SYSTEM = 0, NTH_SEQ_ORIGIN_PROVIDER = 1 };
-
-typedef struct NthSeqOrigin {
-    NthSeqTick          t_tick;
-    NthSeqSystemId      t_id;
-
-    nth_u32 meta;
-
-    NthSeqOriginKind s_kind;
-    nth_u8 reserved[3];
-
-    union {
-        NthSeqSystemId system;
-        NthSeqProviderId provider;
-    } s;
-} NthSeqOrigin;
+typedef struct NthSeqTarget {
+    NthSeqTick      tick;
+    NthSeqSystemId  system;
+} NthSeqTarget;
 typedef struct NthSeqPayload {
     nth_u32 kind;
     nth_u32 meta;
@@ -47,7 +31,7 @@ typedef struct NthSeqPayload {
     nth_u8  payload[24];
 } NthSeqPayload;
 typedef struct NthSeqMessage {
-    NthSeqOrigin origin;
+    NthSeqTarget target;
     NthSeqPayload payload;
 } NthSeqMessage;
 
@@ -63,11 +47,9 @@ typedef void (*NthSeqTickPfn)(
 typedef void (*NthSeqSnapshotPfn)(void **snapshot, void *state, const void *userdata);
 typedef void (*NthSeqReleasePfn)(void *state, const void *userdata);
 
-typedef void (*NthSeqPumpPfn)(NthDeltaNs dt, void *userdata);
-
 
 typedef struct NthSeqSystemDesc {
-    NthDeltaNs hz;
+    NthDeltaNs period;
     nth_u32 priority;
     nth_u32 max_catchup;
 
@@ -81,42 +63,34 @@ typedef struct NthSeqSystemDesc {
     NthSeqSystemId *views;
     nth_u64 view_count;
 } NthSeqSystemDesc;
-typedef struct NthSeqProviderDesc { // feel kinda empty
-    NthSeqPumpPfn pfn_pump;
-
-    void *userdata;
-} NthSeqProviderDesc;
-
-typedef struct NthSequencerDesc { // I do not like the names of those field, even if they are instrumental. if 0 = infinite. command and pomise are per-system limits.
+typedef struct NthSequencerDesc {
     nth_u32 system_capacity;
-    nth_u32 producer_capacity;
-    nth_u32 command_capacity;
-    nth_u32 promise_capacity;
+
+    nth_u32 max_messages;
+    nth_u32 max_promises;
+    nth_u32 max_snapshots;
+
+    NthDeltaNs promise_timeout;
 } NthSequencerDesc;
 
 
+// TLDR; The sequencer is a deterministic execution timeline for systems.
 NTH_API NthResult nth_init_sequencer(const NthSequencerDesc *desc);
 NTH_API void nth_term_sequencer(void);
 
 NTH_API NthResult nth_seq_register_system(const NthSeqSystemDesc *desc, NthSeqSystemId *out_id);
 NTH_API void nth_seq_unregister_system(NthSeqSystemId id);
 
-NTH_API NthResult nth_seq_register_provider(const NthSeqProviderDesc *desc, NthSeqProviderId *out_id);
-NTH_API void nth_seq_unregister_provider(NthSeqProviderId id);
+NTH_API void nth_seq_start(void);
+NTH_API void nth_seq_advance(void);
 
-// probably should replace nthresult by a custom PostStatus or PostResult, we will see when there
-NTH_API NthResult nth_seq_post(NthSeqOrigin origin, NthSeqPayload payload);
-
-NTH_API NthResult nth_seq_promise(NthSeqOrigin origin, NthSeqPromiseId *out_id);
+NTH_API NthResult nth_seq_message(NthSeqTarget target, NthSeqPayload payload);
+NTH_API NthResult nth_seq_promise(NthSeqTarget target, NthSeqPromiseId *out_id);
 NTH_API NthResult nth_seq_fulfill(NthSeqPromiseId id, NthSeqPayload payload);
 
-NTH_API void nth_seq_pump_all(NthDeltaNs dt);
-NTH_API void nth_seq_pump_one(NthSeqProviderId id, NthDeltaNs dt);
-NTH_API void nth_seq_advance(NthUptimeNs up_time);
-
-NTH_API const void *nth_seq_get_state(NthSeqSystemId id);
+NTH_API NthSeqView nth_seq_get_view(NthSeqSystemId id);
 NTH_API NthSeqTick nth_seq_get_tick(NthSeqSystemId id);
-NTH_API NthDeltaNs nth_seq_get_hz(NthSeqSystemId id);
+NTH_API NthDeltaNs nth_seq_get_period(NthSeqSystemId id);
 NTH_API nth_f64 nth_seq_get_alpha(NthSeqSystemId id);
 
 

@@ -28,7 +28,9 @@ NTH_API void nth_teardown_free_list(NthFreeList *list);
 NTH_API nth_b8 nth_free_list_grow(NthFreeList *list, NthSpan span);
 NTH_API NthSpan nth_free_list_shrink(NthFreeList *list);
 
-NTH_API void *nth_free_list_alloc(NthFreeList *list, nth_usize size);
+NTH_API void *nth_free_list_first_fit(NthFreeList *list, nth_usize size);
+NTH_API void *nth_free_list_best_fit(NthFreeList *list, nth_usize size);
+NTH_API void *nth_free_list_worst_fit(NthFreeList *list, nth_usize size);
 NTH_API void nth_free_list_free(NthFreeList *list, void *addr); // I do not like that function name.
 NTH_API void nth_free_list_clear(NthFreeList *list);
 

@@ -87,6 +87,34 @@ static inline NthFreeListMeta *free_list_carve_span(NthSpan span, nth_usize span
     return meta;
 }
 
+static inline nth_usize nth_free_list_subdivide(NthFreeList *list, NthFreeListMeta *meta, NthFreeListMeta **last_ptr, nth_usize csize) {
+    nth_usize alloc_csize;
+
+    if(FLIST_CSIZE(meta->key) > csize+1) {
+        NthFreeListMeta *next = meta + csize;
+
+        nth_poison_live(next, sizeof(NthFreeListMeta));
+
+        *last_ptr = next;
+
+        next->next = meta->next;
+        FLIST_SET_CSIZE(next->key, FLIST_CSIZE(meta->key) - csize);
+        FLIST_SET_SPAN_IDX(next->key, FLIST_SPAN_IDX(meta->key));
+
+        alloc_csize = csize;
+    } else {
+        *last_ptr = meta->next;
+
+        alloc_csize = FLIST_CSIZE(meta->key);
+    }
+
+    // Last step
+    FLIST_SET_CSIZE(meta->key, alloc_csize);
+    meta->next = list->p_used;
+    list->p_used = meta;
+
+    return alloc_csize;
+}
 
 /* ================================================================================ */
 /*  IMPLEMENTATION                                                                  */
@@ -166,7 +194,7 @@ NthSpan nth_free_list_shrink(NthFreeList *list) {
     return ret;
 }
 
-void *nth_free_list_alloc(NthFreeList *list, nth_usize size) {
+void *nth_free_list_first_fit(NthFreeList *list, nth_usize size) {
     NTH_DASSERT(NTH_LIKELY(list != NULL));
     NTH_DASSERT(NTH_LIKELY(list->spans != NULL));
     NTH_DASSERT(NTH_LIKELY(size > 0));
@@ -189,38 +217,17 @@ void *nth_free_list_alloc(NthFreeList *list, nth_usize size) {
         return NULL;
 
     // Subdivide if possible
-    nth_usize alloc_csize;
-
-    if(FLIST_CSIZE(last->key) > csize+1) {
-        NthFreeListMeta *next = last + csize;
-
-        nth_poison_live(next, sizeof(NthFreeListMeta));
-
-        *last_ptr = next;
-
-        next->next = last->next;
-        FLIST_SET_CSIZE(next->key, FLIST_CSIZE(last->key) - csize);
-        FLIST_SET_SPAN_IDX(next->key, FLIST_SPAN_IDX(last->key));
-
-        alloc_csize = csize;
-    } else {
-        *last_ptr = last->next;
-
-        alloc_csize = FLIST_CSIZE(last->key);
-    }
-
-    *(volatile int*)0 = 0; // you got me, fucking nerd
-
-    // Last step
-    FLIST_SET_CSIZE(last->key, alloc_csize);
-    last->next = list->p_used;
-    list->p_used = last;
-
+    nth_usize alloc_csize = nth_free_list_subdivide(list, last, last_ptr, csize);
+    
     ++last;
     nth_poison_live(last, (alloc_csize-1) * sizeof(NthFreeListMeta));
 
     return last;
 }
+NTH_API void *nth_free_list_best_fit(NthFreeList *list, nth_usize size);
+NTH_API void *nth_free_list_worst_fit(NthFreeList *list, nth_usize size);
+
+
 void nth_free_list_free(NthFreeList *list, void *addr) {
     NTH_DASSERT(NTH_LIKELY(list != NULL));
     NTH_DASSERT(NTH_LIKELY(list->spans != NULL));

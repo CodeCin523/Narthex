@@ -2,6 +2,7 @@
 #define NTH_RESULT_H
 
 #include <narthex/nth_types.h>
+#include <narthex/nth_config.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,6 +42,11 @@ enum {
     NTH_RESULT_PERMISSION_DENIED            = 0x35,
 };
 
+#if NTH_HAS_SEQUENCER
+enum {
+    NTH_RESULT_SEQ_PROMISE_EXPIRED = 0x100,
+};
+#endif
 
 #ifdef __cplusplus
 }

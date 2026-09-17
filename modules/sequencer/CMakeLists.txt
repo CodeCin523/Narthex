@@ -1,5 +1,5 @@
 add_library(nth_obj_sequencer OBJECT
-    tmp.c)
+    nth_sequencer.c)
 
 target_include_directories(nth_obj_sequencer PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
