@@ -1,4 +1,4 @@
-#include <narthex/mem/arena.h>
+#include <narthex/alloc/arena.h>
 
 #include <narthex/utils/check.h>
 #include <narthex/inl/align.h>

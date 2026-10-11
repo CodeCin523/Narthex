@@ -1,4 +1,4 @@
-#include <narthex/mem/dyn_arena.h>
+#include <narthex/alloc/dyn_arena.h>
 
 #include <narthex/utils/check.h>
 #include <narthex/inl/align.h>

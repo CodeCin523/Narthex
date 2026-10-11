@@ -63,9 +63,9 @@ static inline void nth_poison_disown(void *p, nth_usize n) {
 
 #else
 
-#define nth_poison_dead(p, n)   ((void)0)
-#define nth_poison_live(p, n)   ((void)0)
-#define nth_poison_disown(p, n) ((void)0)
+#define nth_poison_dead(p, n)   ((void)(p), (void)(n))
+#define nth_poison_live(p, n)   ((void)(p), (void)(n))
+#define nth_poison_disown(p, n) ((void)(p), (void)(n))
 
 #endif
 

@@ -1,7 +1,6 @@
 #ifndef NTH_PATH_H
 #define NTH_PATH_H
 
-#include <narthex/mem/span.h>
 #include <narthex/nth_result.h>
 #include <narthex/utils/api.h>
 
@@ -14,7 +13,10 @@ typedef struct NthPath {
     nth_u8 *ptr;
     nth_u64 meta;
 } NthPath;
-typedef NthSpan NthPathView;
+typedef struct NthPathView {
+    nth_u8   *ptr;
+    nth_usize size;
+} NthPathView;
 
 
 NTH_API NthResult nth_setup_path(NthPath *path);

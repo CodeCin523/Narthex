@@ -1,4 +1,4 @@
-#include <narthex/mem/free_list.h>
+#include <narthex/alloc/free_list.h>
 
 #include <narthex/utils/check.h>
 #include <narthex/inl/align.h>
@@ -6,6 +6,7 @@
 #include "poison.h"
 
 #include <stdalign.h>
+#include <string.h>
 #include <stdlib.h>
 
 
@@ -87,7 +88,7 @@ static inline NthFreeListMeta *free_list_carve_span(NthSpan span, nth_usize span
     return meta;
 }
 
-static inline nth_usize nth_free_list_subdivide(NthFreeList *list, NthFreeListMeta *meta, NthFreeListMeta **last_ptr, nth_usize csize) {
+static inline nth_usize nth_free_list_alloc(NthFreeList *list, NthFreeListMeta *meta, NthFreeListMeta **last_ptr, nth_usize csize) {
     nth_usize alloc_csize;
 
     if(FLIST_CSIZE(meta->key) > csize+1) {
@@ -217,15 +218,87 @@ void *nth_free_list_first_fit(NthFreeList *list, nth_usize size) {
         return NULL;
 
     // Subdivide if possible
-    nth_usize alloc_csize = nth_free_list_subdivide(list, last, last_ptr, csize);
+    nth_usize alloc_csize = nth_free_list_alloc(list, last, last_ptr, csize);
     
     ++last;
     nth_poison_live(last, (alloc_csize-1) * sizeof(NthFreeListMeta));
 
     return last;
 }
-NTH_API void *nth_free_list_best_fit(NthFreeList *list, nth_usize size);
-NTH_API void *nth_free_list_worst_fit(NthFreeList *list, nth_usize size);
+NTH_API void *nth_free_list_best_fit(NthFreeList *list, nth_usize size) {
+    NTH_DASSERT(NTH_LIKELY(list != NULL));
+    NTH_DASSERT(NTH_LIKELY(list->spans != NULL));
+    NTH_DASSERT(NTH_LIKELY(size > 0));
+
+    const nth_usize csize = SIZEUP_TO_CSIZE(size) + 1;
+    NTH_DASSERT(NTH_LIKELY(csize < FLIST_CSIZE_MAX));
+
+    // Get possible address
+    NthFreeListMeta **last_ptr = (NthFreeListMeta **)&list->p_free;
+    NthFreeListMeta *last = (NthFreeListMeta *)list->p_free;
+
+    NthFreeListMeta **selected_ptr = NULL;
+    NthFreeListMeta *selected = NULL;
+    nth_usize selected_csize = NTH_USIZE_MAX;
+    
+    while(last != NULL) {
+        if(FLIST_CSIZE(last->key) > selected_csize) {
+            selected_ptr = last_ptr;
+            selected = last;
+            selected_csize = FLIST_CSIZE(last->key);
+        }
+
+        last_ptr = &last->next;
+        last = last->next;
+    }
+    if(NTH_UNLIKELY(selected == NULL))
+        return NULL;
+
+    // Subdivide if possible
+    nth_usize alloc_csize = nth_free_list_alloc(list, selected, selected_ptr, csize);
+    
+    ++selected;
+    nth_poison_live(selected, (alloc_csize-1) * sizeof(NthFreeListMeta));
+
+    return selected;
+}
+NTH_API void *nth_free_list_worst_fit(NthFreeList *list, nth_usize size) {
+    NTH_DASSERT(NTH_LIKELY(list != NULL));
+    NTH_DASSERT(NTH_LIKELY(list->spans != NULL));
+    NTH_DASSERT(NTH_LIKELY(size > 0));
+
+    const nth_usize csize = SIZEUP_TO_CSIZE(size) + 1;
+    NTH_DASSERT(NTH_LIKELY(csize < FLIST_CSIZE_MAX));
+
+    // Get possible address
+    NthFreeListMeta **last_ptr = (NthFreeListMeta **)&list->p_free;
+    NthFreeListMeta *last = (NthFreeListMeta *)list->p_free;
+
+    NthFreeListMeta **selected_ptr = NULL;
+    NthFreeListMeta *selected = NULL;
+    nth_usize selected_csize = 0;
+    
+    while(last != NULL) {
+        if(FLIST_CSIZE(last->key) < selected_csize) {
+            selected_ptr = last_ptr;
+            selected = last;
+            selected_csize = FLIST_CSIZE(last->key);
+        }
+
+        last_ptr = &last->next;
+        last = last->next;
+    }
+    if(NTH_UNLIKELY(selected == NULL || selected_csize < csize))
+        return NULL;
+
+    // Subdivide if possible
+    nth_usize alloc_csize = nth_free_list_alloc(list, selected, selected_ptr, csize);
+    
+    ++selected;
+    nth_poison_live(selected, (alloc_csize-1) * sizeof(NthFreeListMeta));
+
+    return selected;
+}
 
 
 void nth_free_list_free(NthFreeList *list, void *addr) {
@@ -276,48 +349,130 @@ void nth_free_list_clear(NthFreeList *list) {
 /*  ALLOCATOR                                                                       */
 /* ================================================================================ */
 
-static void *free_list_alloc_alloc(const void *ctx, nth_usize size, nth_usize align) {
-    (void)align;
-    return nth_free_list_alloc((NthFreeList *)ctx, size);
+static void *free_list_alloc_alloc_ff(const void *ctx, nth_usize size, nth_usize align) {
+    NTH_DASSERT(NTH_LIKELY(align <= alignof(max_align_t)));
+    return nth_free_list_first_fit((NthFreeList *)ctx, size);
 }
-static void free_list_alloc_free(const void *ctx, void *ptr) {
-    nth_free_list_free((NthFreeList *)ctx, ptr);
-}
-static void *free_list_alloc_realloc(const void *ctx, void *ptr, nth_usize size, nth_usize align) {
+static void *free_list_alloc_realloc_ff(const void *ctx, void *ptr, nth_usize size, nth_usize align) {
+    NTH_DASSERT(NTH_LIKELY(align <= alignof(max_align_t)));
     if (ptr == NULL)
-        return free_list_alloc_alloc(ctx, size, align);
+        return nth_free_list_first_fit((NthFreeList *)ctx, size);
 
     if (size == 0) {
-        free_list_alloc_free(ctx, ptr);
+        nth_free_list_free((NthFreeList *)ctx, ptr);
         return NULL;
     }
 
     NthFreeListMeta *head = (NthFreeListMeta *)ptr - 1;
     nth_usize old_size = (FLIST_CSIZE(head->key)-1) * sizeof(NthFreeListMeta);
 
-    void *new_ptr = free_list_alloc_alloc(ctx, size, align);
+    void *new_ptr = nth_free_list_first_fit((NthFreeList *)ctx, size);
     if (NTH_UNLIKELY(new_ptr == NULL))
         return NULL;
 
     memcpy(new_ptr, ptr, old_size < size ? old_size : size);
 
-    free_list_alloc_free(ctx, ptr);
+    nth_free_list_free((NthFreeList *)ctx, ptr);
 
     return new_ptr;
+}
+
+static void *free_list_alloc_alloc_bf(const void *ctx, nth_usize size, nth_usize align) {
+    NTH_DASSERT(NTH_LIKELY(align <= alignof(max_align_t)));
+    return nth_free_list_best_fit((NthFreeList *)ctx, size);
+}
+static void *free_list_alloc_realloc_bf(const void *ctx, void *ptr, nth_usize size, nth_usize align) {
+    NTH_DASSERT(NTH_LIKELY(align <= alignof(max_align_t)));
+    if (ptr == NULL)
+        return nth_free_list_best_fit((NthFreeList *)ctx, size);
+
+    if (size == 0) {
+        nth_free_list_free((NthFreeList *)ctx, ptr);
+        return NULL;
+    }
+
+    NthFreeListMeta *head = (NthFreeListMeta *)ptr - 1;
+    nth_usize old_size = (FLIST_CSIZE(head->key)-1) * sizeof(NthFreeListMeta);
+
+    void *new_ptr = nth_free_list_best_fit((NthFreeList *)ctx, size);
+    if (NTH_UNLIKELY(new_ptr == NULL))
+        return NULL;
+
+    memcpy(new_ptr, ptr, old_size < size ? old_size : size);
+
+    nth_free_list_free((NthFreeList *)ctx, ptr);
+
+    return new_ptr;
+}
+
+static void *free_list_alloc_alloc_wf(const void *ctx, nth_usize size, nth_usize align) {
+    NTH_DASSERT(NTH_LIKELY(align <= alignof(max_align_t)));
+    return nth_free_list_worst_fit((NthFreeList *)ctx, size);
+}
+static void *free_list_alloc_realloc_wf(const void *ctx, void *ptr, nth_usize size, nth_usize align) {
+    NTH_DASSERT(NTH_LIKELY(align <= alignof(max_align_t)));
+    if (ptr == NULL)
+        return nth_free_list_worst_fit((NthFreeList *)ctx, size);
+
+    if (size == 0) {
+        nth_free_list_free((NthFreeList *)ctx, ptr);
+        return NULL;
+    }
+
+    NthFreeListMeta *head = (NthFreeListMeta *)ptr - 1;
+    nth_usize old_size = (FLIST_CSIZE(head->key)-1) * sizeof(NthFreeListMeta);
+
+    void *new_ptr = nth_free_list_worst_fit((NthFreeList *)ctx, size);
+    if (NTH_UNLIKELY(new_ptr == NULL))
+        return NULL;
+
+    memcpy(new_ptr, ptr, old_size < size ? old_size : size);
+
+    nth_free_list_free((NthFreeList *)ctx, ptr);
+
+    return new_ptr;
+}
+
+static void free_list_alloc_free(const void *ctx, void *ptr) {
+    nth_free_list_free((NthFreeList *)ctx, ptr);
 }
 static void free_list_alloc_clear(const void *ctx) {
     nth_free_list_clear((NthFreeList *)ctx);
 }
 
-NthAllocator nth_free_list_as_allocator(NthFreeList *list) {
+NthAllocator nth_free_list_as_first_fit_allocator(NthFreeList *list) {
     NTH_DASSERT(NTH_LIKELY(list != NULL));
     NTH_DASSERT(NTH_LIKELY(list->spans != NULL));
 
     return (NthAllocator) {
         .ctx = list,
-        .alloc = free_list_alloc_alloc,
+        .alloc = free_list_alloc_alloc_ff,
         .free = free_list_alloc_free,
-        .realloc = free_list_alloc_realloc,
+        .realloc = free_list_alloc_realloc_ff,
+        .clear = free_list_alloc_clear
+    };
+}
+NthAllocator nth_free_list_as_best_fit_allocator(NthFreeList *list) {
+    NTH_DASSERT(NTH_LIKELY(list != NULL));
+    NTH_DASSERT(NTH_LIKELY(list->spans != NULL));
+
+    return (NthAllocator) {
+        .ctx = list,
+        .alloc = free_list_alloc_alloc_bf,
+        .free = free_list_alloc_free,
+        .realloc = free_list_alloc_realloc_bf,
+        .clear = free_list_alloc_clear
+    };
+}
+NthAllocator nth_free_list_as_worst_fit_allocator(NthFreeList *list) {
+    NTH_DASSERT(NTH_LIKELY(list != NULL));
+    NTH_DASSERT(NTH_LIKELY(list->spans != NULL));
+
+    return (NthAllocator) {
+        .ctx = list,
+        .alloc = free_list_alloc_alloc_wf,
+        .free = free_list_alloc_free,
+        .realloc = free_list_alloc_realloc_wf,
         .clear = free_list_alloc_clear
     };
 }

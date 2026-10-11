@@ -57,7 +57,7 @@
 
 static NthPathView view_make(char *s, nth_usize n) {
     NthPathView v;
-    v.base = (nth_u8 *)s;
+    v.ptr = (nth_u8 *)s;
     v.size = n;
     return v;
 }
@@ -74,20 +74,20 @@ static nth_b8 view_is(NthPathView v, const char *s) {
     if (n == 0)
         return NTH_TRUE;
 
-    return (nth_b8)(memcmp(v.base, s, n) == 0);
+    return (nth_b8)(memcmp(v.ptr, s, n) == 0);
 }
 
 /* A view must address bytes of the path it came from. */
 static nth_b8 view_within(NthPathView v, const NthPath *p) {
-    const nth_u8   *base = (const nth_u8 *)nth_path_data(p);
+    const nth_u8   *ptr = (const nth_u8 *)nth_path_data(p);
     const nth_usize len  = nth_path_length(p);
 
     if (v.size == 0)
-        return NTH_TRUE; /* base is unconstrained for an empty view */
+        return NTH_TRUE; /* ptr is unconstrained for an empty view */
 
     NTH_TEST_ASSERT(v.size <= len);
-    NTH_TEST_ASSERT(v.base >= base);
-    NTH_TEST_ASSERT((nth_usize)(v.base - base) <= len - v.size);
+    NTH_TEST_ASSERT(v.ptr >= ptr);
+    NTH_TEST_ASSERT((nth_usize)(v.ptr - ptr) <= len - v.size);
 
     return NTH_TRUE;
 }
@@ -132,9 +132,9 @@ static nth_b8 check_split(const NthPath *p) {
     NTH_TEST_ASSERT(st.size + dot + ex.size == fn.size);
 
     if (st.size != 0)
-        NTH_TEST_ASSERT(memcmp(st.base, fn.base, st.size) == 0);
+        NTH_TEST_ASSERT(memcmp(st.ptr, fn.ptr, st.size) == 0);
     if (ex.size != 0)
-        NTH_TEST_ASSERT(memcmp(ex.base, fn.base + st.size + dot, ex.size) == 0);
+        NTH_TEST_ASSERT(memcmp(ex.ptr, fn.ptr + st.size + dot, ex.size) == 0);
 
     return NTH_TRUE;
 }
@@ -145,16 +145,16 @@ static nth_b8 check_dir_filename(const NthPath *p) {
     const NthPathView dir = nth_path_directory(p);
     const NthPathView fn  = nth_path_filename(p);
 
-    const nth_u8   *base = (const nth_u8 *)nth_path_data(p);
+    const nth_u8   *ptr = (const nth_u8 *)nth_path_data(p);
     const nth_usize len  = nth_path_length(p);
 
     NTH_TEST_ASSERT(dir.size + fn.size <= len);
     NTH_TEST_ASSERT(len - dir.size - fn.size <= 1);
 
     if (dir.size != 0)
-        NTH_TEST_ASSERT(dir.base == base);
+        NTH_TEST_ASSERT(dir.ptr == ptr);
     if (fn.size != 0)
-        NTH_TEST_ASSERT(fn.base + fn.size == base + len);
+        NTH_TEST_ASSERT(fn.ptr + fn.size == ptr + len);
 
     return NTH_TRUE;
 }

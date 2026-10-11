@@ -1,5 +1,5 @@
-#ifndef NTH_MEM_ALLOCATOR_H
-#define NTH_MEM_ALLOCATOR_H
+#ifndef NTH_ALLOC_ALLOCATOR_H
+#define NTH_ALLOC_ALLOCATOR_H
 
 #include <narthex/nth_types.h>
 
@@ -41,4 +41,4 @@ static inline void nth_clear(NthAllocator *a) {
 }
 #endif
 
-#endif /* NTH_MEM_ALLOCATOR_H */
+#endif /* NTH_ALLOC_ALLOCATOR_H */

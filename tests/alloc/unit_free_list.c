@@ -1,6 +1,6 @@
 #include "nth_test.h"
 
-#include <narthex/mem/free_list.h>
+#include <narthex/alloc/free_list.h>
 #include <narthex/inl/align.h>
 
 #include <stdalign.h>
@@ -44,7 +44,7 @@ static nth_b8 test_alloc_basic(void) {
 
     NTH_TEST_ASSERT(nth_setup_free_list(&list, s) == NTH_RESULT_OK);
 
-    void *p = nth_free_list_alloc(&list, 16);
+    void *p = nth_free_list_first_fit(&list, 16);
 
     NTH_TEST_ASSERT(p != NULL);
     NTH_TEST_ASSERT(in_span(s, p, 16));
@@ -68,10 +68,10 @@ static nth_b8 test_alloc_multiple(void) {
 
     NTH_TEST_ASSERT(nth_setup_free_list(&list, s) == NTH_RESULT_OK);
 
-    void *p0 = nth_free_list_alloc(&list, 1);
-    void *p1 = nth_free_list_alloc(&list, 32);
-    void *p2 = nth_free_list_alloc(&list, 64);
-    void *p3 = nth_free_list_alloc(&list, 127);
+    void *p0 = nth_free_list_first_fit(&list, 1);
+    void *p1 = nth_free_list_first_fit(&list, 32);
+    void *p2 = nth_free_list_first_fit(&list, 64);
+    void *p3 = nth_free_list_first_fit(&list, 127);
 
     NTH_TEST_ASSERT(p0 != NULL);
     NTH_TEST_ASSERT(p1 != NULL);
@@ -107,9 +107,9 @@ static nth_b8 test_alloc_alignment(void) {
 
     NTH_TEST_ASSERT(nth_setup_free_list(&list, s) == NTH_RESULT_OK);
 
-    void *p0 = nth_free_list_alloc(&list, 1);
-    void *p1 = nth_free_list_alloc(&list, 17);
-    void *p2 = nth_free_list_alloc(&list, 64);
+    void *p0 = nth_free_list_first_fit(&list, 1);
+    void *p1 = nth_free_list_first_fit(&list, 17);
+    void *p2 = nth_free_list_first_fit(&list, 64);
 
     NTH_TEST_ASSERT(p0 != NULL);
     NTH_TEST_ASSERT(p1 != NULL);
@@ -135,9 +135,9 @@ static nth_b8 test_alloc_granularity(void) {
 
     NTH_TEST_ASSERT(nth_setup_free_list(&list, s) == NTH_RESULT_OK);
 
-    void *p0 = nth_free_list_alloc(&list, 1);
-    void *p1 = nth_free_list_alloc(&list, 32);
-    void *p2 = nth_free_list_alloc(&list, 33);
+    void *p0 = nth_free_list_first_fit(&list, 1);
+    void *p1 = nth_free_list_first_fit(&list, 32);
+    void *p2 = nth_free_list_first_fit(&list, 33);
 
     NTH_TEST_ASSERT(p0 != NULL);
     NTH_TEST_ASSERT(p1 != NULL);
@@ -171,13 +171,13 @@ static nth_b8 test_free_reuses_block(void) {
 
     NTH_TEST_ASSERT(nth_setup_free_list(&list, s) == NTH_RESULT_OK);
 
-    void *p0 = nth_free_list_alloc(&list, 64);
+    void *p0 = nth_free_list_first_fit(&list, 64);
 
     NTH_TEST_ASSERT(p0 != NULL);
 
     nth_free_list_free(&list, p0);
 
-    void *p1 = nth_free_list_alloc(&list, 64);
+    void *p1 = nth_free_list_first_fit(&list, 64);
 
     NTH_TEST_ASSERT(p1 == p0);
 
@@ -194,9 +194,9 @@ static nth_b8 test_free_reuses_fragment(void) {
 
     NTH_TEST_ASSERT(nth_setup_free_list(&list, s) == NTH_RESULT_OK);
 
-    void *p0 = nth_free_list_alloc(&list, 32);
-    void *p1 = nth_free_list_alloc(&list, 32);
-    void *p2 = nth_free_list_alloc(&list, 32);
+    void *p0 = nth_free_list_first_fit(&list, 32);
+    void *p1 = nth_free_list_first_fit(&list, 32);
+    void *p2 = nth_free_list_first_fit(&list, 32);
 
     NTH_TEST_ASSERT(p0 != NULL);
     NTH_TEST_ASSERT(p1 != NULL);
@@ -204,7 +204,7 @@ static nth_b8 test_free_reuses_fragment(void) {
 
     nth_free_list_free(&list, p1);
 
-    void *p3 = nth_free_list_alloc(&list, 32);
+    void *p3 = nth_free_list_first_fit(&list, 32);
 
     NTH_TEST_ASSERT(p3 == p1);
 
@@ -228,9 +228,9 @@ static nth_b8 test_coalesce_forward(void) {
 
     NTH_TEST_ASSERT(nth_setup_free_list(&list, s) == NTH_RESULT_OK);
 
-    void *p0 = nth_free_list_alloc(&list, 32);
-    void *p1 = nth_free_list_alloc(&list, 32);
-    void *p2 = nth_free_list_alloc(&list, 32);
+    void *p0 = nth_free_list_first_fit(&list, 32);
+    void *p1 = nth_free_list_first_fit(&list, 32);
+    void *p2 = nth_free_list_first_fit(&list, 32);
 
     NTH_TEST_ASSERT(p0 != NULL);
     NTH_TEST_ASSERT(p1 != NULL);
@@ -239,7 +239,7 @@ static nth_b8 test_coalesce_forward(void) {
     nth_free_list_free(&list, p1);
     nth_free_list_free(&list, p0);
 
-    void *p3 = nth_free_list_alloc(&list, 64);
+    void *p3 = nth_free_list_first_fit(&list, 64);
 
     NTH_TEST_ASSERT(p3 == p0);
 
@@ -258,9 +258,9 @@ static nth_b8 test_coalesce_backward(void) {
 
     NTH_TEST_ASSERT(nth_setup_free_list(&list, s) == NTH_RESULT_OK);
 
-    void *p0 = nth_free_list_alloc(&list, 32);
-    void *p1 = nth_free_list_alloc(&list, 32);
-    void *p2 = nth_free_list_alloc(&list, 32);
+    void *p0 = nth_free_list_first_fit(&list, 32);
+    void *p1 = nth_free_list_first_fit(&list, 32);
+    void *p2 = nth_free_list_first_fit(&list, 32);
 
     NTH_TEST_ASSERT(p0 != NULL);
     NTH_TEST_ASSERT(p1 != NULL);
@@ -269,7 +269,7 @@ static nth_b8 test_coalesce_backward(void) {
     nth_free_list_free(&list, p0);
     nth_free_list_free(&list, p1);
 
-    void *p3 = nth_free_list_alloc(&list, 64);
+    void *p3 = nth_free_list_first_fit(&list, 64);
 
     NTH_TEST_ASSERT(p3 == p0);
 
@@ -288,9 +288,9 @@ static nth_b8 test_coalesce_both(void) {
 
     NTH_TEST_ASSERT(nth_setup_free_list(&list, s) == NTH_RESULT_OK);
 
-    void *p0 = nth_free_list_alloc(&list, 32);
-    void *p1 = nth_free_list_alloc(&list, 32);
-    void *p2 = nth_free_list_alloc(&list, 32);
+    void *p0 = nth_free_list_first_fit(&list, 32);
+    void *p1 = nth_free_list_first_fit(&list, 32);
+    void *p2 = nth_free_list_first_fit(&list, 32);
 
     NTH_TEST_ASSERT(p0 != NULL);
     NTH_TEST_ASSERT(p1 != NULL);
@@ -300,7 +300,7 @@ static nth_b8 test_coalesce_both(void) {
     nth_free_list_free(&list, p2);
     nth_free_list_free(&list, p1);
 
-    void *p3 = nth_free_list_alloc(&list, 128);
+    void *p3 = nth_free_list_first_fit(&list, 128);
 
     NTH_TEST_ASSERT(p3 == p0);
 
@@ -321,7 +321,7 @@ static nth_b8 test_allocation_failure(void) {
 
     NTH_TEST_ASSERT(nth_setup_free_list(&list, s) == NTH_RESULT_OK);
 
-    void *p = nth_free_list_alloc(&list, 4096);
+    void *p = nth_free_list_first_fit(&list, 4096);
 
     NTH_TEST_ASSERT(p == NULL);
     NTH_TEST_ASSERT(list.p_used == NULL);
@@ -349,11 +349,11 @@ static nth_b8 test_exact_fill(void) {
     void *blk[4];
 
     for (nth_usize i = 0; i < 4; i++) {
-        blk[i] = nth_free_list_alloc(&list, 64);
+        blk[i] = nth_free_list_first_fit(&list, 64);
         NTH_TEST_ASSERT(blk[i] != NULL);
     }
 
-    NTH_TEST_ASSERT(nth_free_list_alloc(&list, 64) == NULL);
+    NTH_TEST_ASSERT(nth_free_list_first_fit(&list, 64) == NULL);
 
     for (nth_usize i = 0; i < 4; i++)
         nth_free_list_free(&list, blk[i]);
@@ -398,7 +398,7 @@ static nth_b8 test_grow_uses_new_span(void) {
     NTH_TEST_ASSERT(nth_setup_free_list(&list, s0) == NTH_RESULT_OK);
     NTH_TEST_ASSERT(nth_free_list_grow(&list, s1));
 
-    void *p = nth_free_list_alloc(&list, 64);
+    void *p = nth_free_list_first_fit(&list, 64);
 
     NTH_TEST_ASSERT(p != NULL);
     NTH_TEST_ASSERT(in_span(s1, p, 64));
@@ -471,7 +471,7 @@ static nth_b8 test_shrink_refuses_live_span(void) {
     NTH_TEST_ASSERT(nth_setup_free_list(&list, s0) == NTH_RESULT_OK);
     NTH_TEST_ASSERT(nth_free_list_grow(&list, s1));
 
-    void *p = nth_free_list_alloc(&list, 64);
+    void *p = nth_free_list_first_fit(&list, 64);
 
     NTH_TEST_ASSERT(p != NULL);
     NTH_TEST_ASSERT(in_span(s1, p, 64));
@@ -500,7 +500,7 @@ static nth_b8 test_shrink_after_free(void) {
     NTH_TEST_ASSERT(nth_setup_free_list(&list, s0) == NTH_RESULT_OK);
     NTH_TEST_ASSERT(nth_free_list_grow(&list, s1));
 
-    void *p = nth_free_list_alloc(&list, 64);
+    void *p = nth_free_list_first_fit(&list, 64);
 
     NTH_TEST_ASSERT(p != NULL);
     NTH_TEST_ASSERT(in_span(s1, p, 64));
@@ -555,9 +555,9 @@ static nth_b8 test_clear(void) {
     NTH_TEST_ASSERT(nth_setup_free_list(&list, s0) == NTH_RESULT_OK);
     NTH_TEST_ASSERT(nth_free_list_grow(&list, s1));
 
-    void *p0 = nth_free_list_alloc(&list, 64);
-    void *p1 = nth_free_list_alloc(&list, 64);
-    void *p2 = nth_free_list_alloc(&list, 64);
+    void *p0 = nth_free_list_first_fit(&list, 64);
+    void *p1 = nth_free_list_first_fit(&list, 64);
+    void *p2 = nth_free_list_first_fit(&list, 64);
 
     NTH_TEST_ASSERT(p0 != NULL);
     NTH_TEST_ASSERT(p1 != NULL);
@@ -568,7 +568,7 @@ static nth_b8 test_clear(void) {
     NTH_TEST_ASSERT(list.p_used == NULL);
     NTH_TEST_ASSERT(list.p_free != NULL);
 
-    void *p3 = nth_free_list_alloc(&list, 64);
+    void *p3 = nth_free_list_first_fit(&list, 64);
 
     NTH_TEST_ASSERT(p3 != NULL);
     NTH_TEST_ASSERT(in_any_span(&list, p3, 64));
@@ -727,7 +727,7 @@ static nth_b8 test_stress_model(void) {
         if (op < 60 && live < MAX_BLK) {
             nth_usize sz = 1 + rnd() % 256;
 
-            nth_u8 *p = nth_free_list_alloc(&list, sz);
+            nth_u8 *p = nth_free_list_first_fit(&list, sz);
 
             if (p == NULL)
                 continue;

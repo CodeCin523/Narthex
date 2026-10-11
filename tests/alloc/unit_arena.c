@@ -1,6 +1,6 @@
 #include "nth_test.h"
 
-#include <narthex/mem/arena.h>
+#include <narthex/alloc/arena.h>
 #include <narthex/inl/align.h>
 
 #include <string.h>

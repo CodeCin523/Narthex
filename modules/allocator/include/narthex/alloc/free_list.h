@@ -1,9 +1,9 @@
-#ifndef NTH_MEM_FREE_LIST_H
-#define NTH_MEM_FREE_LIST_H
+#ifndef NTH_ALLOC_FREE_LIST_H
+#define NTH_ALLOC_FREE_LIST_H
 
 #include <narthex/nth_types.h>
-#include <narthex/mem/allocator.h>
-#include <narthex/mem/span.h>
+#include <narthex/alloc/allocator.h>
+#include <narthex/alloc/span.h>
 #include <narthex/nth_result.h>
 #include <narthex/utils/api.h>
 
@@ -34,11 +34,15 @@ NTH_API void *nth_free_list_worst_fit(NthFreeList *list, nth_usize size);
 NTH_API void nth_free_list_free(NthFreeList *list, void *addr); // I do not like that function name.
 NTH_API void nth_free_list_clear(NthFreeList *list);
 
-NTH_API NthAllocator nth_free_list_as_allocator(NthFreeList *list);
+NTH_API NthAllocator nth_free_list_as_first_fit_allocator(NthFreeList *list);
+NTH_API NthAllocator nth_free_list_as_best_fit_allocator(NthFreeList *list);
+NTH_API NthAllocator nth_free_list_as_worst_fit_allocator(NthFreeList *list);
+
+#define nth_free_list_as_allocator(list) (nth_free_list_as_first_fit_allocator(list))
 
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* NTH_MEM_FREE_LIST_H */
+#endif /* NTH_ALLOC_FREE_LIST_H */

@@ -188,7 +188,7 @@ NthResult nth_setup_path_view(NthPath *path, NthPathView view) {
     if(NTH_UNLIKELY(tmp == NULL))
         return NTH_RESULT_OUT_OF_MEMORY;
 
-    memcpy(tmp, view.base, view.size);
+    memcpy(tmp, view.ptr, view.size);
     tmp[view.size] = '\0';
 
     path->ptr = tmp;
@@ -497,7 +497,7 @@ NthPathView nth_path_filename(const NthPath *path) {
     nth_usize start = len;
     while(start > 0 && !PATH_IS_SEP(path->ptr[start - 1])) start--;
 
-    view.base = &path->ptr[start];
+    view.ptr = &path->ptr[start];
     view.size = len - start;
     return view;
 }
@@ -512,7 +512,7 @@ NthPathView nth_path_directory(const NthPath *path) {
     while(end > 0 && PATH_IS_SEP(path->ptr[end - 1])) end--;
 
     if(end == 0) {
-        view.base = path->ptr;
+        view.ptr = path->ptr;
         view.size = (len > 0) ? 1 : 0; /* "/", "///", "" -> canonical root or empty */
         return view;
     }
@@ -521,7 +521,7 @@ NthPathView nth_path_directory(const NthPath *path) {
     while(start > 0 && !PATH_IS_SEP(path->ptr[start - 1])) start--;
 
     if(start == 0) {
-        view.base = path->ptr;
+        view.ptr = path->ptr;
         view.size = 0; /* no separator anywhere -> no directory part */
         return view;
     }
@@ -531,11 +531,11 @@ NthPathView nth_path_directory(const NthPath *path) {
         nth_usize dir_end = start;
         while(dir_end > 1 && PATH_IS_SEP(path->ptr[dir_end - 1]))
             dir_end--;
-        view.base = path->ptr;
+        view.ptr = path->ptr;
         view.size = dir_end;
     } else {
         /* trailing separator(s): no filename, whole trimmed path is the directory */
-        view.base = path->ptr;
+        view.ptr = path->ptr;
         view.size = end;
     }
 
@@ -547,19 +547,19 @@ NthPathView nth_path_extension(const NthPath *path) {
 
     NthPathView fname = nth_path_filename(path);
     NthPathView view = {0};
-    if(fname.base == NULL || fname.size == 0)
+    if(fname.ptr == NULL || fname.size == 0)
         return view;
 
     nth_usize i = fname.size;
     while(i > 1) {
         i--;
-        if(fname.base[i] == '.') {
+        if(fname.ptr[i] == '.') {
             nth_usize j = 0;
-            while(j < i && fname.base[j] == '.') j++;
+            while(j < i && fname.ptr[j] == '.') j++;
             if(j == i)
                 return view; /* filename is all dots (".", "..", "...") -> no extension */
 
-            view.base = &fname.base[i];
+            view.ptr = &fname.ptr[i];
             view.size = fname.size - i;
             return view;
         }
@@ -573,7 +573,7 @@ NthPathView nth_path_stem(const NthPath *path) {
     NthPathView fname = nth_path_filename(path);
     NthPathView ext = nth_path_extension(path);
 
-    if(ext.base != NULL)
+    if(ext.ptr != NULL)
         fname.size -= ext.size;
     return fname;
 }
@@ -585,7 +585,7 @@ nth_b8 nth_path_equal(const NthPath *a, const NthPath *b) {
     NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(b->meta)));
 
     NthPathView bv;
-    bv.base = b->ptr;
+    bv.ptr = b->ptr;
     bv.size = PATH_LEN(b->meta);
     return nth_path_equal_view(a, bv);
 }
@@ -594,7 +594,7 @@ nth_b8 nth_path_equal_view(const NthPath *path, NthPathView view) {
     NTH_ASSERT(NTH_LIKELY(PATH_ALIVE(path->meta)));
 
     NthPathView self;
-    self.base = path->ptr;
+    self.ptr = path->ptr;
     self.size = PATH_LEN(path->meta);
     return nth_path_view_equal(self, view);
 }
@@ -603,7 +603,7 @@ nth_b8 nth_path_view_equal(NthPathView a, NthPathView b) {
         return 0;
     if(a.size == 0)
         return 1;
-    return memcmp(a.base, b.base, a.size) == 0;
+    return memcmp(a.ptr, b.ptr, a.size) == 0;
 }
 nth_b8 nth_path_view_equal_cstr(NthPathView view, const char *str) {
     nth_usize len = strlen(str);
@@ -611,7 +611,7 @@ nth_b8 nth_path_view_equal_cstr(NthPathView view, const char *str) {
         return 0;
     if(len == 0)
         return 1;
-    return memcmp(view.base, str, len) == 0;
+    return memcmp(view.ptr, str, len) == 0;
 }
 
 

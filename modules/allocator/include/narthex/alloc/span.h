@@ -1,5 +1,5 @@
-#ifndef NTH_MEM_SPAN_H
-#define NTH_MEM_SPAN_H
+#ifndef NTH_ALLOC_SPAN_H
+#define NTH_ALLOC_SPAN_H
 
 #include <narthex/nth_types.h>
 
@@ -18,4 +18,4 @@ typedef struct NthSpan {
 }
 #endif
 
-#endif /* NTH_MEM_SPAN_H */
+#endif /* NTH_ALLOC_SPAN_H */
