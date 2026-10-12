@@ -59,7 +59,7 @@ NthDeltaNs nth_uptime_elapsed(NthUptimeNs since) {
     up_time.ns = now_ns - start_ns;
 #endif
 
-    dt = NTH_DELTA_SINCE(since, up_time);
+    dt = nth_delta_since(since, up_time);
     return dt;
 }
 

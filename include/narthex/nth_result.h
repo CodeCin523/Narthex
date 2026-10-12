@@ -19,6 +19,7 @@ enum {
     NTH_RESULT_NOT_FOUND                    = 0x04,
     NTH_RESULT_NOT_SUPPORTED                = 0x05,
     NTH_RESULT_OVERFLOW                     = 0x06,
+    NTH_RESULT_ALREADY_EXISTS               = 0x07,
 
     // arguments / config
     NTH_RESULT_INVALID_ARGUMENT             = 0x10,
@@ -42,11 +43,6 @@ enum {
     NTH_RESULT_PERMISSION_DENIED            = 0x35,
 };
 
-#if NTH_HAS_SEQUENCER
-enum {
-    NTH_RESULT_SEQ_PROMISE_EXPIRED = 0x100,
-};
-#endif
 
 #ifdef __cplusplus
 }

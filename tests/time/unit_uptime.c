@@ -9,7 +9,7 @@ static nth_b8 test_delta_since_normal(void) {
     NthUptimeNs prev = NTH_UPTIME_NS(100);
     NthUptimeNs now  = NTH_UPTIME_NS(250);
 
-    NthDeltaNs dt = NTH_DELTA_SINCE(prev, now);
+    NthDeltaNs dt = nth_delta_since(prev, now);
 
     NTH_TEST_ASSERT(dt.ns == 150);
     return NTH_TRUE;
@@ -19,7 +19,7 @@ static nth_b8 test_delta_since_saturates_on_clock_going_backward(void) {
     NthUptimeNs prev = NTH_UPTIME_NS(250);
     NthUptimeNs now  = NTH_UPTIME_NS(100); /* clock somehow went backward */
 
-    NthDeltaNs dt = NTH_DELTA_SINCE(prev, now);
+    NthDeltaNs dt = nth_delta_since(prev, now);
 
     NTH_TEST_ASSERT(dt.ns == 0);
     return NTH_TRUE;
@@ -28,7 +28,7 @@ static nth_b8 test_delta_since_saturates_on_clock_going_backward(void) {
 static nth_b8 test_delta_since_zero_when_equal(void) {
     NthUptimeNs t = NTH_UPTIME_NS(42);
 
-    NthDeltaNs dt = NTH_DELTA_SINCE(t, t);
+    NthDeltaNs dt = nth_delta_since(t, t);
 
     NTH_TEST_ASSERT(dt.ns == 0);
     return NTH_TRUE;
@@ -37,7 +37,7 @@ static nth_b8 test_delta_since_zero_when_equal(void) {
 static nth_b8 test_delta_clamp_clamps_when_over(void) {
     NthDeltaNs dt = NTH_DELTA_NS(500);
 
-    NthDeltaNs clamped = NTH_DELTA_CLAMP(dt, 200);
+    NthDeltaNs clamped = nth_delta_clamp(dt, 200);
 
     NTH_TEST_ASSERT(clamped.ns == 200);
     return NTH_TRUE;
@@ -46,7 +46,7 @@ static nth_b8 test_delta_clamp_clamps_when_over(void) {
 static nth_b8 test_delta_clamp_passthrough_when_under(void) {
     NthDeltaNs dt = NTH_DELTA_NS(100);
 
-    NthDeltaNs clamped = NTH_DELTA_CLAMP(dt, 200);
+    NthDeltaNs clamped = nth_delta_clamp(dt, 200);
 
     NTH_TEST_ASSERT(clamped.ns == 100);
     return NTH_TRUE;
@@ -55,7 +55,7 @@ static nth_b8 test_delta_clamp_passthrough_when_under(void) {
 static nth_b8 test_delta_clamp_exact_boundary(void) {
     NthDeltaNs dt = NTH_DELTA_NS(200);
 
-    NthDeltaNs clamped = NTH_DELTA_CLAMP(dt, 200);
+    NthDeltaNs clamped = nth_delta_clamp(dt, 200);
 
     NTH_TEST_ASSERT(clamped.ns == 200);
     return NTH_TRUE;
@@ -65,7 +65,7 @@ static nth_b8 test_delta_sub_saturating_normal(void) {
     nth_u64 remaining = 300;
     NthDeltaNs dt = NTH_DELTA_NS(100);
 
-    remaining = NTH_DELTA_SUB_SATURATING(remaining, dt);
+    remaining = nth_delta_sub_saturating(remaining, dt);
 
     NTH_TEST_ASSERT(remaining == 200);
     return NTH_TRUE;
@@ -75,7 +75,7 @@ static nth_b8 test_delta_sub_saturating_floors_at_zero(void) {
     nth_u64 remaining = 50;
     NthDeltaNs dt = NTH_DELTA_NS(100);
 
-    remaining = NTH_DELTA_SUB_SATURATING(remaining, dt);
+    remaining = nth_delta_sub_saturating(remaining, dt);
 
     NTH_TEST_ASSERT(remaining == 0);
     return NTH_TRUE;
@@ -84,7 +84,7 @@ static nth_b8 test_delta_sub_saturating_floors_at_zero(void) {
 static nth_b8 test_delta_to_sec_f64(void) {
     NthDeltaNs dt = NTH_DELTA_NS(1500000000); /* 1.5s */
 
-    nth_f64 sec = NTH_DELTA_TO_SEC_F64(dt);
+    nth_f64 sec = nth_delta_to_sec_f64(dt);
 
     NTH_TEST_ASSERT(fabs(sec - 1.5) < 1e-9);
     return NTH_TRUE;
@@ -93,7 +93,7 @@ static nth_b8 test_delta_to_sec_f64(void) {
 static nth_b8 test_delta_to_sec_f32(void) {
     NthDeltaNs dt = NTH_DELTA_NS(250000000); /* 0.25s */
 
-    nth_f32 sec = NTH_DELTA_TO_SEC_F32(dt);
+    nth_f32 sec = nth_delta_to_sec_f32(dt);
 
     NTH_TEST_ASSERT(fabsf(sec - 0.25f) < 1e-6f);
     return NTH_TRUE;
@@ -102,7 +102,7 @@ static nth_b8 test_delta_to_sec_f32(void) {
 static nth_b8 test_delta_to_sec_zero(void) {
     NthDeltaNs dt = NTH_DELTA_NS(0);
 
-    NTH_TEST_ASSERT(NTH_DELTA_TO_SEC_F64(dt) == 0.0);
+    NTH_TEST_ASSERT(nth_delta_to_sec_f64(dt) == 0.0);
     return NTH_TRUE;
 }
 
@@ -119,7 +119,7 @@ static nth_b8 test_uptime_elapsed_matches_manual_delta(void) {
     NthUptimeNs end   = nth_uptime_now();
 
     NthDeltaNs elapsed = nth_uptime_elapsed(start);
-    NthDeltaNs manual  = NTH_DELTA_SINCE(start, end);
+    NthDeltaNs manual  = nth_delta_since(start, end);
 
     /* elapsed was measured slightly after `end`, so it should be >= the
      * manual delta, and not off by some absurd amount (1 second is a very
