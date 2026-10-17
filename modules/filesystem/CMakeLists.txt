@@ -1,4 +1,6 @@
-add_library(nth_obj_filesystem OBJECT fs.c)
+add_library(nth_obj_filesystem OBJECT
+    nth_fs.c
+    system.c)
 
 target_include_directories(nth_obj_filesystem PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>

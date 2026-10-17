@@ -160,9 +160,12 @@ NthTime nth_time_from_calendar(const NthCalendar *cal) {
     NTH_ASSERT(NTH_LIKELY(cal->month >= 1 && cal->month <= 12));
     NTH_ASSERT(NTH_LIKELY(cal->day >= 1 && cal->day <= 31));
 
-    nth_i64 days       = days_from_civil(cal->year, cal->month, cal->day);
-    nth_i64 sec_of_day = (nth_i64)cal->hour * 3600 + (nth_i64)cal->minute * 60 + (nth_i64)cal->second;
+    nth_i64 days = days_from_civil(cal->year, cal->month, cal->day);
 
+    /* NTH_I64_MAX / NS_PER_DAY, with margin subtracted for the sub-day component added below. */
+    NTH_ASSERT(NTH_LIKELY(days > -106750 && days < 106750));
+
+    nth_i64 sec_of_day = (nth_i64)cal->hour * 3600 + (nth_i64)cal->minute * 60 + (nth_i64)cal->second;
     return (NthTime){ .ns = days * NS_PER_DAY + sec_of_day * NS_PER_SEC + (nth_i64)cal->nanosecond };
 }
 NthTime nth_time_from_calendar_local(const NthCalendar *cal) {

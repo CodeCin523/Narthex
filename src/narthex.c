@@ -12,9 +12,6 @@ NthLifecycle g_narthex_life;
 NthResult nth_init_log(const NthLoggerDesc *desc);
 void nth_term_log(void);
 
-NthResult nth_init_path(const char *app_name);
-void nth_term_path(void);
-
 NthResult nth_init_uptime();
 void nth_term_uptime();
 
@@ -25,11 +22,6 @@ NthResult nth_init(const NthCoreDesc *desc) {
         return r;
 
     r = nth_init_log(desc != NULL ? &desc->logger : NULL);
-    if (r != NTH_RESULT_OK) {
-        nth_lifecycle_fail_init(&g_narthex_life);
-        return r;
-    }
-    r = nth_init_path(desc != NULL? desc->app_name : NULL);
     if (r != NTH_RESULT_OK) {
         nth_lifecycle_fail_init(&g_narthex_life);
         return r;
@@ -49,7 +41,6 @@ void nth_term(void) {
         return;
 
     nth_term_uptime();
-    nth_term_path();
     nth_term_log();
 
     nth_lifecycle_end_term(&g_narthex_life);

@@ -24,11 +24,6 @@ NTH_API NthResult nth_setup_path_cstr(NthPath *path, const char *str);
 NTH_API NthResult nth_setup_path_view(NthPath *path, NthPathView view);
 NTH_API void nth_teardown_path(NthPath *path);
 
-NTH_API void nth_path_system_config(NthPath *path); // XDG_CONFIG_HOME/<app> on Linux, %APPDATA%\<app> on Windows
-NTH_API void nth_path_system_data(NthPath *path); // XDG_DATA_HOME/<app> on Linux, %LOCALAPPDATA%\<app> on Windows
-NTH_API void nth_path_system_cwd(NthPath *path); // working directory at init time
-NTH_API void nth_path_system_exe(NthPath *path); // directory of running executable
-
 NTH_API void nth_path_set(NthPath *path, const char *str);
 NTH_API void nth_path_setn(NthPath *path, const char *str, nth_usize len);
 NTH_API void nth_path_append(NthPath *path, const char *str);
@@ -47,6 +42,7 @@ NTH_API nth_usize nth_path_length(const NthPath *path);
 NTH_API nth_b8 nth_path_empty(const NthPath *path);
 NTH_API nth_b8 nth_path_is_absolute(const NthPath *path);
 NTH_API nth_b8 nth_path_is_relative(const NthPath *path);
+NTH_API nth_b8 nth_path_is_alive(const NthPath *path);
 
 NTH_API NthPathView nth_path_filename(const NthPath *path);
 NTH_API NthPathView nth_path_directory(const NthPath *path);

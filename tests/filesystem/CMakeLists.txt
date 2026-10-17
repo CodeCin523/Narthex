@@ -1,0 +1,5 @@
+add_executable(unit_fs unit_fs.c)
+target_link_libraries(unit_fs PRIVATE narthex::narthex)
+target_include_directories(unit_fs PRIVATE ${NTH_TEST_INCLUDE})
+add_test(NAME filesystem/unit COMMAND unit_fs)
+set_tests_properties(filesystem/unit PROPERTIES LABELS "unit")

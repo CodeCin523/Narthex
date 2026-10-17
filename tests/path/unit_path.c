@@ -932,75 +932,6 @@ static nth_b8 test_view_equal_cstr_length_bound(void) {
 
 
 /* ================================================================================ */
-/*  SYSTEM PATHS                                                                    */
-/* ================================================================================ */
-
-/* cwd and exe are backed by syscalls that cannot legitimately fail on either
-   platform, so those must come back absolute. config and data depend on the
-   environment, which a stripped CI container may not provide, so they are only
-   required to be well formed. */
-static nth_b8 test_system_paths(void) {
-    NthPath cwd, exe, cfg, dat;
-    NTH_TEST_ASSERT(nth_setup_path(&cwd) == NTH_RESULT_OK);
-    NTH_TEST_ASSERT(nth_setup_path(&exe) == NTH_RESULT_OK);
-    NTH_TEST_ASSERT(nth_setup_path(&cfg) == NTH_RESULT_OK);
-    NTH_TEST_ASSERT(nth_setup_path(&dat) == NTH_RESULT_OK);
-
-    nth_path_system_cwd(&cwd);
-    nth_path_system_exe(&exe);
-    nth_path_system_config(&cfg);
-    nth_path_system_data(&dat);
-
-    NTH_TEST_ASSERT(inv(&cwd));
-    NTH_TEST_ASSERT(inv(&exe));
-    NTH_TEST_ASSERT(inv(&cfg));
-    NTH_TEST_ASSERT(inv(&dat));
-
-    NTH_TEST_ASSERT(!nth_path_empty(&cwd));
-    NTH_TEST_ASSERT(nth_path_is_absolute(&cwd));
-
-    NTH_TEST_ASSERT(!nth_path_empty(&exe));
-    NTH_TEST_ASSERT(nth_path_is_absolute(&exe));
-
-    if (!nth_path_empty(&cfg))
-        NTH_TEST_ASSERT(nth_path_is_absolute(&cfg));
-    if (!nth_path_empty(&dat))
-        NTH_TEST_ASSERT(nth_path_is_absolute(&dat));
-
-    nth_teardown_path(&cwd);
-    nth_teardown_path(&exe);
-    nth_teardown_path(&cfg);
-    nth_teardown_path(&dat);
-    return NTH_TRUE;
-}
-
-/* Repeated calls are stable and overwrite rather than accumulate. */
-static nth_b8 test_system_paths_stable(void) {
-    NthPath a, b;
-    NTH_TEST_ASSERT(nth_setup_path(&a) == NTH_RESULT_OK);
-    NTH_TEST_ASSERT(nth_setup_path_cstr(&b, "leftover-content-to-overwrite") == NTH_RESULT_OK);
-
-    nth_path_system_cwd(&a);
-    nth_path_system_cwd(&b);
-    NTH_TEST_ASSERT(inv(&b));
-    NTH_TEST_ASSERT(nth_path_equal(&a, &b));
-
-    nth_path_system_exe(&a);
-    nth_path_system_exe(&b);
-    NTH_TEST_ASSERT(nth_path_equal(&a, &b));
-
-    /* the exe directory is a directory, so appending a name yields a child */
-    nth_path_append(&b, "child.bin");
-    NTH_TEST_ASSERT(inv(&b));
-    NTH_TEST_ASSERT(view_is(nth_path_filename(&b), "child.bin"));
-
-    nth_teardown_path(&a);
-    nth_teardown_path(&b);
-    return NTH_TRUE;
-}
-
-
-/* ================================================================================ */
 /*  STRESS                                                                          */
 /* ================================================================================ */
 
@@ -1187,9 +1118,6 @@ int main(void) {
         { "equal/empty",              test_equal_empty              },
         { "equal/view_forms_agree",   test_equal_view_forms_agree   },
         { "equal/cstr_length_bound",  test_view_equal_cstr_length_bound },
-
-        { "system/paths",             test_system_paths             },
-        { "system/paths_stable",      test_system_paths_stable      },
 
         { "stress/model",             test_stress_model             },
         { "stress/many_live",         test_stress_many_live         },

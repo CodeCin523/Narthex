@@ -20,6 +20,7 @@ enum {
     NTH_RESULT_NOT_SUPPORTED                = 0x05,
     NTH_RESULT_OVERFLOW                     = 0x06,
     NTH_RESULT_ALREADY_EXISTS               = 0x07,
+    NTH_RESULT_NO_MORE_ITEMS                = 0x08,
 
     // arguments / config
     NTH_RESULT_INVALID_ARGUMENT             = 0x10,

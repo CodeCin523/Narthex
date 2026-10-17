@@ -2,6 +2,7 @@ add_library(narthex ${NTH_LIB_KIND}
     narthex.c
     nth_log.c
     nth_path.c
+    nth_time.c
     nth_uptime.c)
 
 add_library(narthex::narthex ALIAS narthex)
