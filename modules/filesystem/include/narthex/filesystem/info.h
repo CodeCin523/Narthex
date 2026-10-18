@@ -1,5 +1,11 @@
-#ifndef NTH_FILESYSTEM_CORE_H
-#define NTH_FILESYSTEM_CORE_H
+#ifndef NTH_FILESYSTEM_INFO_H
+#define NTH_FILESYSTEM_INFO_H
+
+#include <narthex/nth_config.h>
+
+#if !NTH_HAS_FILESYSTEM
+#error "Narthex was built without the filesystem module"
+#endif
 
 #include <narthex/nth_result.h>
 #include <narthex/nth_time.h>
@@ -48,4 +54,4 @@ NTH_API NthResult nth_fs_resolve(const char *path, NthPath *out);
 }
 #endif
 
-#endif /* NTH_FILESYSTEM_CORE_H */
+#endif /* NTH_FILESYSTEM_INFO_H */

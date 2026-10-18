@@ -7,7 +7,7 @@
 
 #include <string.h>
 
-#if !NTH_PLATFORM_WINDOWS
+#if NTH_PLATFORM_LINUX
 #include <unistd.h> /* symlink() — fixture-only use, see test_query_dangling_symlink */
 #endif
 
@@ -91,7 +91,7 @@ static nth_b8 test_query_directory(void) {
     return NTH_TRUE;
 }
 
-#if !NTH_PLATFORM_WINDOWS
+#if NTH_PLATFORM_LINUX
 static nth_b8 test_query_dangling_symlink(void) {
     NthPath root; fs_test_root("query_dangling_symlink", &root);
     NthPath target; fs_test_child(&root, "does_not_exist", &target);
@@ -156,7 +156,7 @@ static nth_b8 test_resolve_nonexistent(void) {
     return NTH_TRUE;
 }
 
-#if !NTH_PLATFORM_WINDOWS
+#if NTH_PLATFORM_LINUX
 static nth_b8 test_resolve_dangling_symlink(void) {
     NthPath root; fs_test_root("resolve_dangling_symlink", &root);
     NthPath target; fs_test_child(&root, "does_not_exist", &target);
@@ -464,7 +464,7 @@ static nth_b8 test_remove_all_on_file_fails(void) {
     return NTH_TRUE;
 }
 
-#if !NTH_PLATFORM_WINDOWS
+#if NTH_PLATFORM_LINUX
 static nth_b8 test_remove_all_refuses_symlink(void) {
     NthPath root; fs_test_root("remove_all_refuses_symlink", &root);
     NthPath target; fs_test_child(&root, "real_dir", &target);
@@ -587,7 +587,7 @@ static nth_b8 test_system_config_differs_by_app_name(void) {
     return NTH_TRUE;
 }
 
-#if !NTH_PLATFORM_WINDOWS
+#if NTH_PLATFORM_LINUX
 static nth_b8 test_symlink_to_directory_round_trip(void) {
     NthPath root; fs_test_root("symlink_dir_roundtrip", &root);
     NthPath target; fs_test_child(&root, "real_dir", &target);
@@ -614,12 +614,12 @@ int main(void) {
         { "query/nonexistent",                     test_query_nonexistent },
         { "query/file",                             test_query_file },
         { "query/directory",                        test_query_directory },
-#if !NTH_PLATFORM_WINDOWS
+#if NTH_PLATFORM_LINUX
         { "query/dangling_symlink",                 test_query_dangling_symlink },
 #endif
         { "resolve/plain_file",                     test_resolve_plain_file },
         { "resolve/nonexistent",                    test_resolve_nonexistent },
-#if !NTH_PLATFORM_WINDOWS
+#if NTH_PLATFORM_LINUX
         { "resolve/dangling_symlink",                test_resolve_dangling_symlink },
 #endif
         { "dir/empty",                               test_dir_empty },
@@ -637,7 +637,7 @@ int main(void) {
         { "remove/nonempty_dir_fails",                test_remove_nonempty_dir_fails },
         { "remove/all_clears_tree",                   test_remove_all_clears_tree },
         { "remove/all_on_file_fails",                 test_remove_all_on_file_fails },
-#if !NTH_PLATFORM_WINDOWS
+#if NTH_PLATFORM_LINUX
         { "remove/all_refuses_symlink",               test_remove_all_refuses_symlink },
         { "no_idea/symlink_to_directory_round_trip", test_symlink_to_directory_round_trip},
 #endif

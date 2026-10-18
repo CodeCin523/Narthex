@@ -76,12 +76,18 @@ foreach(c IN LISTS NTH_ALL_MODULES)
     if(NTH_ENABLE_${c})
         add_subdirectory(modules/${c})
         target_sources(narthex PRIVATE $<TARGET_OBJECTS:nth_obj_${c}>)
+
         if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/modules/${c}/include)
             target_include_directories(narthex PUBLIC
                 $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/modules/${c}/include>)
         endif()
     endif()
 endforeach()
+
+if(NTH_ENABLE_vulkan)
+    find_package(Vulkan REQUIRED)
+    target_link_libraries(narthex PUBLIC Vulkan::Vulkan)
+endif()
 
 include(NarthexInstall)
 

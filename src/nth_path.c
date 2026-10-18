@@ -4,8 +4,6 @@
 #include <narthex/utils/platform.h>
 #include <narthex/utils/check.h>
 
-#include "internal.h"
-
 #include <stdlib.h>
 #include <string.h>
 
@@ -13,7 +11,6 @@
 #include <windows.h>
 #else
 #include <unistd.h>
-#include <errno.h>
 #endif
 
 
@@ -63,34 +60,6 @@
 #define PATH_DEFAULT_CAP ((nth_usize)4096)
 
 
-static char *path_dup(const char *s) {
-    nth_usize len = strlen(s);
-    char *buf = malloc(len + 1);
-    if(NTH_UNLIKELY(buf == NULL))
-        return NULL;
-    memcpy(buf, s, len + 1);
-    return buf;
-}
-static char *path_dup_app(const char *base, const char *app_name) {
-    nth_usize base_len = strlen(base);
-
-    if(app_name == NULL)
-        return path_dup(base);
-
-    nth_usize app_len = strlen(app_name);
-    nth_usize len = base_len + 1 + app_len;
-
-    char *buf = malloc(len + 1);
-    if(NTH_UNLIKELY(buf == NULL))
-        return NULL;
-
-    memcpy(buf, base, base_len);
-    buf[base_len] = PATH_SEP;
-    memcpy(buf + base_len + 1, app_name, app_len);
-    buf[len] = '\0';
-
-    return buf;
-}
 static NthResult path_grow(NthPath *path, nth_usize needed_len) {
     nth_usize cap = PATH_CAP(path->meta);
 

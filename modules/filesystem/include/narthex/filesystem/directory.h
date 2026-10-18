@@ -1,6 +1,12 @@
 #ifndef NTH_FILESYSTEM_DIRECTORY_H
 #define NTH_FILESYSTEM_DIRECTORY_H
 
+#include <narthex/nth_config.h>
+
+#if !NTH_HAS_FILESYSTEM
+#error "Narthex was built without the filesystem module"
+#endif
+
 #include <narthex/nth_path.h>
 #include <narthex/filesystem/info.h>
 #include <narthex/utils/platform.h>

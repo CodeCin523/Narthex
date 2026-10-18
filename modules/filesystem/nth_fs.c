@@ -25,8 +25,10 @@
 
 #if NTH_PLATFORM_WINDOWS
 #define FS_SEP '\\'
+#define FS_IS_SEP(c) ((c) == '/' || (c) == '\\')
 #else
 #define FS_SEP '/'
+#define FS_IS_SEP(c) ((c) == '/')
 #endif
 
 #define NS_PER_SEC ((nth_i64)1000000000)
@@ -229,9 +231,6 @@ NthResult nth_fs_resolve(const char *path, NthPath *out) {
     if(needed >= 4 && strncmp(buf, "\\\\?\\", 4) == 0)
         result = buf + 4;
 
-    NthResult r = nth_path_empty(out) || !NTH_TRUE /* out must already be alive via nth_setup_path */
-                      ? NTH_RESULT_OK : NTH_RESULT_OK;
-    (void)r;
     nth_path_set(out, result);
 
     free(buf);
@@ -601,7 +600,7 @@ NthResult nth_fs_create_dir_all(const char *path) {
 
     NthResult result = NTH_RESULT_OK;
     for(nth_usize i = 1; i <= len; i++) {
-        if(i == len || buf[i] == FS_SEP) {
+        if(i == len || FS_IS_SEP(buf[i])) {
             char saved = buf[i];
             buf[i] = '\0';
 

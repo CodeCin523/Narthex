@@ -1,5 +1,5 @@
 add_library(nth_obj_vulkan OBJECT
-    vulkan.c)
+    nth_vulkan.c)
 
 target_include_directories(nth_obj_vulkan PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>

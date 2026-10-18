@@ -1,6 +1,6 @@
 #include <narthex/utils/platform.h>
 
-#if !NTH_PLATFORM_WINDOWS && !defined(_POSIX_C_SOURCE)
+#if NTH_PLATFORM_LINUX && !defined(_POSIX_C_SOURCE)
     #define _POSIX_C_SOURCE 200809L
 #endif
 #if NTH_PLATFORM_LINUX && !defined(_GNU_SOURCE)

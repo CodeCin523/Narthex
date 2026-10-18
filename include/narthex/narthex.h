@@ -17,7 +17,6 @@ typedef struct NthLoggerDesc {
 
 typedef struct NthCoreDesc {
     NthLoggerDesc logger;
-    const char *app_name; /* NULL is valid */
 } NthCoreDesc;
 
 
