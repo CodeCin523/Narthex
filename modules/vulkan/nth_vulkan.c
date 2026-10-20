@@ -19,6 +19,8 @@ static struct {
 
     VkPhysicalDevice *phy_devices;
     nth_u32 phy_device_count;
+
+    PFN_vkSetDebugUtilsObjectNameEXT pfn_set_object_name;
 } g_vulkan = {0};
 
 
@@ -55,7 +57,7 @@ static void fill_debug_messenger_info(VkDebugUtilsMessengerCreateInfoEXT *info) 
     };
 }
 
-nth_i32 default_device_score(VkPhysicalDevice device) {
+static nth_i32 default_device_score(VkPhysicalDevice device) {
     VkPhysicalDeviceProperties props;
     vkGetPhysicalDeviceProperties(device, &props);
 
@@ -71,7 +73,7 @@ nth_i32 default_device_score(VkPhysicalDevice device) {
     }
 }
 
-nth_i32 queue_priority(VkQueueFlags flags, nth_b8 supports_present) {
+static nth_i32 queue_priority(VkQueueFlags flags, nth_b8 supports_present) {
     if((flags & VK_QUEUE_GRAPHICS_BIT) && supports_present) return 0;
     if(flags & VK_QUEUE_GRAPHICS_BIT) return 1;
     if(flags & VK_QUEUE_COMPUTE_BIT) return 2;
@@ -83,14 +85,15 @@ nth_i32 queue_priority(VkQueueFlags flags, nth_b8 supports_present) {
 /*  IMPLEMENTATION                                                                  */
 /* ================================================================================ */
 
-NTH_API NthResult nth_init_vulkan(NthVulkanDesc *desc) {
+NthResult nth_init_vulkan(NthVulkanDesc *desc) {
     NTH_DASSERT(NTH_LIKELY(desc != NULL));
     NTH_DASSERT(NTH_LIKELY(desc->app_name != NULL));
     NTH_DASSERT(NTH_LIKELY(desc->engine_name != NULL));
 
+    desc->enable_naming = NTH_DEBUG ? 1 : desc->enable_naming;
     desc->enable_validation = NTH_DEBUG ? 1 : desc->enable_validation;
 
-    if(desc->enable_validation) {
+    if(desc->enable_naming || desc->enable_validation) {
         nth_u32 layer_count = 0;
         vkEnumerateInstanceLayerProperties(&layer_count, NULL);
         VkLayerProperties *available = malloc(layer_count * sizeof(VkLayerProperties));
@@ -123,7 +126,7 @@ NTH_API NthResult nth_init_vulkan(NthVulkanDesc *desc) {
 
     for(nth_u32 i = 0; i < ext_count; ++i)
         extensions[i] = desc->extensions[i];
-    if(desc->enable_validation)
+    if(desc->enable_naming || desc->enable_validation)
         extensions[ext_count++] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
 
     VkApplicationInfo app_info = {
@@ -186,10 +189,14 @@ NTH_API NthResult nth_init_vulkan(NthVulkanDesc *desc) {
 
     vkEnumeratePhysicalDevices(g_vulkan.instance, &g_vulkan.phy_device_count, g_vulkan.phy_devices);
 
+    if(desc->enable_naming) {
+        g_vulkan.pfn_set_object_name = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr(g_vulkan.instance, "vkSetDebugUtilsObjectNameEXT");
+    }
+
     NTH_LOG_INFO("Vulkan instance created");
     return NTH_RESULT_OK;
 }
-NTH_API void nth_term_vulkan() {
+void nth_term_vulkan() {
     if(g_vulkan.phy_devices) {
         free(g_vulkan.phy_devices);
         g_vulkan.phy_device_count = 0;
@@ -207,9 +214,15 @@ NTH_API void nth_term_vulkan() {
         vkDestroyInstance(g_vulkan.instance, NULL);
         g_vulkan.instance = VK_NULL_HANDLE;
     }
+
+    g_vulkan.pfn_set_object_name = VK_NULL_HANDLE;
 }
 
-NTH_API NthResult nth_setup_vulkan_device(NthVulkanDevice *device, NthVulkanDeviceDesc *desc) {
+VkInstance nth_vulkan_get_instance(void) {
+    return g_vulkan.instance;
+}
+
+NthResult nth_setup_vulkan_device(NthVulkanDevice *device, NthVulkanDeviceDesc *desc) {
     NTH_DASSERT(NTH_LIKELY(device != NULL));
     NTH_DASSERT(NTH_LIKELY(desc != NULL));
 
@@ -232,9 +245,6 @@ NTH_API NthResult nth_setup_vulkan_device(NthVulkanDevice *device, NthVulkanDevi
         NTH_LOG_FATAL("No suitable GPU available");
         return NTH_RESULT_FAILED;
     }
-
-    g_vulkan.phy_devices[best_index] = g_vulkan.phy_devices[--g_vulkan.phy_device_count];
-    device->phy_device = best_device;
 
     if(desc->surface != VK_NULL_HANDLE) {
         nth_u32 ext_count = 0;
@@ -327,18 +337,31 @@ NTH_API NthResult nth_setup_vulkan_device(NthVulkanDevice *device, NthVulkanDevi
 
     nth_u32 total_ext_count = desc->extension_count;
     nth_b8 needs_swapchain = desc->surface != VK_NULL_HANDLE;
+    
+    if(needs_swapchain) {
+        for(nth_u32 i = 0; i < desc->extension_count; ++i) {
+            if(strcmp(desc->extensions[i], VK_KHR_SWAPCHAIN_EXTENSION_NAME) == 0) {
+#if NTH_DEBUG
+                NTH_LOG_WARN("VK_KHR_swapchain already present in NthVulkanDeviceDesc.extensions; Narthex will not add it a second time");
+#endif
+                needs_swapchain = NTH_FALSE;
+                break;
+            }
+        }
+    }
+    
     if(needs_swapchain) ++total_ext_count;
-
+    
     const char **all_extensions = NULL;
     if(total_ext_count > 0) {
         all_extensions = malloc(total_ext_count * sizeof(const char *));
         if(!all_extensions)
             return NTH_RESULT_OUT_OF_MEMORY;
-
+    
         nth_u32 i = 0;
         for(; i < desc->extension_count; ++i)
             all_extensions[i] = desc->extensions[i];
-
+    
         if(needs_swapchain)
             all_extensions[i] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
     }
@@ -361,6 +384,9 @@ NTH_API NthResult nth_setup_vulkan_device(NthVulkanDevice *device, NthVulkanDevi
         return NTH_RESULT_FAILED;
     }
 
+    g_vulkan.phy_devices[best_index] = g_vulkan.phy_devices[--g_vulkan.phy_device_count];
+    device->phy_device = best_device;
+
     device->queue_count = tmp_count;
     for(nth_u32 i = 0; i < tmp_count; ++i) {
         device->queues[i] = tmp[i];
@@ -371,15 +397,33 @@ NTH_API NthResult nth_setup_vulkan_device(NthVulkanDevice *device, NthVulkanDevi
     NTH_LOG_INFO("Vulkan device created");
     return NTH_RESULT_OK;
 }
-NTH_API void nth_teardown_vulkan_device(NthVulkanDevice *device) {
+void nth_teardown_vulkan_device(NthVulkanDevice *device) {
     if(device->device != VK_NULL_HANDLE) {
         vkDeviceWaitIdle(device->device);
         vkDestroyDevice(device->device, NULL);
         device->device = VK_NULL_HANDLE;
     }
 
-    g_vulkan.phy_devices[g_vulkan.phy_device_count++] = device->phy_device;
-    device->phy_device = VK_NULL_HANDLE;
+    if(device->phy_device != VK_NULL_HANDLE) {
+        g_vulkan.phy_devices[g_vulkan.phy_device_count++] = device->phy_device;
+        device->phy_device = VK_NULL_HANDLE;
+    }
 
     device->queue_count = 0;
+}
+
+void nth_vulkan_name_object(NthVulkanDevice *device, VkObjectType type, nth_u64 handle, const char *name) {
+    NTH_DASSERT(NTH_LIKELY(device != NULL));
+    NTH_DASSERT(NTH_LIKELY(name != NULL));
+
+    if(g_vulkan.pfn_set_object_name == NULL)
+        return;
+
+    VkDebugUtilsObjectNameInfoEXT info = {
+        .sType        = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+        .objectType   = type,
+        .objectHandle = handle,
+        .pObjectName  = name,
+    };
+    g_vulkan.pfn_set_object_name(device->device, &info);
 }

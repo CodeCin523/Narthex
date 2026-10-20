@@ -83,6 +83,8 @@ foreach(c IN LISTS NTH_ALL_MODULES)
         endif()
     endif()
 endforeach()
+target_include_directories(narthex PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
 if(NTH_ENABLE_vulkan)
     find_package(Vulkan REQUIRED)
